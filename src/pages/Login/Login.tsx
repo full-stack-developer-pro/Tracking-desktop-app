@@ -20,9 +20,10 @@ import GoogleIcon from "./GoogleIcon";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import AuthService from "../services/AuthServices";
-import toast from "react-hot-toast";
+import AuthService from "../../services/AuthServices";
 import { useNavigate } from "react-router-dom";
+import { toast } from "react-toastify";
+import SaveIcon from "@mui/icons-material/Save";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -80,10 +81,11 @@ export default function Login() {
 
       localStorage.setItem("auth", JSON.stringify(authData));
 
-      toast.success("Loggged in successfully.");
+      toast.success("Logged in successfully.");
 
       navigate(redirectPath);
     } catch (error: any) {
+      console.log(error);
       toast.error(
         error.response.data.message ||
           error.message ||
@@ -279,7 +281,15 @@ export default function Login() {
                     </Link>
                   </Box>
 
-                  <Button type="submit" fullWidth>
+                  <Button
+                    type="submit"
+                    fullWidth
+                    loading={isSubmitting}
+                    // loading
+                    loadingPosition="end"
+                    endIcon={<SaveIcon />}
+                    variant="outlined"
+                  >
                     {isSubmitting ? "Please wait..." : "Sign in"}
                   </Button>
                 </Stack>

@@ -4,21 +4,10 @@ const API_URL: string =
   import.meta.env.VITE_BACKEND_URL || "http://localhost:3000";
 console.log(import.meta.env.VITE_BACKEND_URL);
 
-type Data = {
-  email: string;
-  password: string;
-};
-
-const login = (data: Data) => {
-  return axios.post(API_URL + "/api/user/login", data, {
-    withCredentials: true,
-  });
-};
-
 const uploadImage = (image: any) => {
   return axios.post(API_URL + "api/upload/image", image);
 };
 
-const AuthService = { login, uploadImage };
+const DataService = { uploadImage };
 
-export default AuthService;
+export default DataService;

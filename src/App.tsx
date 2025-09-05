@@ -2,12 +2,24 @@
 import React from "react";
 import router from "./router";
 import { AuthProvider } from "./context/AuthContext";
-import { Toaster } from "react-hot-toast";
+import { ToastContainer } from "react-toastify";
 
 const App = () => {
   return (
     <AuthProvider>
-      <Toaster position="bottom-right" />
+      <ToastContainer
+        position="bottom-right"
+        autoClose={5000}
+        hideProgressBar={false}
+        newestOnTop={false}
+        closeOnClick={false}
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme="light"
+        // transition={Zoom}
+      />
       {router}
     </AuthProvider>
   );
