@@ -16,12 +16,14 @@ declare global {
 
 export default function Dashboard() {
   const [imgSrc, setImgSrc] = useState("");
+  const userId = JSON.parse(localStorage.getItem("userId") || "null");
+  console.log("userId", userId);
 
   const captureScreen = async () => {
     try {
       const sources = await window.electronAPI.captureScreen();
       const screenshot = sources[0]?.thumbnail;
-      // console.log(sources);
+      // console.log(screenshot);
       setImgSrc(screenshot || "");
       uploadCapturedImage(screenshot);
     } catch (err) {
@@ -36,9 +38,22 @@ export default function Dashboard() {
   const uploadCapturedImage = async (img: any) => {
     try {
       // console.log("received images", img);
-      const res = await DataService.uploadImage(img);
-
+      const res = await fetch(img);
       console.log(res);
+      const blob = await res.blob();
+      console.log(blob);
+      const file = new File([blob], `screenshot_${Date.now()}.png`, {
+        type: "image/png",
+      });
+      console.log(file);
+
+      const formData = new FormData();
+      formData.append("image", file);
+      formData.append("userId", userId);
+
+      const apiRes = await DataService.uploadImage(formData);
+
+      console.log(apiRes);
     } catch (error: any) {
       console.log(error);
       toast.error(error.response.data.message || "Failed to upload image");

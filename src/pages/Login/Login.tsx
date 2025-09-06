@@ -77,9 +77,10 @@ export default function Login() {
         return;
       }
 
-      const authData: object = { user, userId, role, token };
-
-      localStorage.setItem("auth", JSON.stringify(authData));
+      localStorage.setItem("user", JSON.stringify(user));
+      localStorage.setItem("userId", JSON.stringify(userId));
+      localStorage.setItem("role", JSON.stringify(role));
+      localStorage.setItem("token", JSON.stringify(token));
 
       toast.success("Logged in successfully.");
 
