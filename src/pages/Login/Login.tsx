@@ -25,6 +25,15 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import SaveIcon from "@mui/icons-material/Save";
 
+declare global {
+  interface Window {
+    electronAPI: {
+      login: () => void;
+      logout: () => void;
+    };
+  }
+}
+
 export default function Login() {
   const navigate = useNavigate();
 
@@ -57,7 +66,7 @@ export default function Login() {
   const onSubmit = async (data: Data) => {
     try {
       const res = await AuthService.login(data);
-      console.log("login res", res);
+      // console.log("login res", res);
       const user = res?.data?.data?.user;
       const token = res?.data?.data?.token;
       const role = res?.data?.data?.user?.role;
@@ -81,6 +90,14 @@ export default function Login() {
       localStorage.setItem("userId", JSON.stringify(userId));
       localStorage.setItem("role", JSON.stringify(role));
       localStorage.setItem("token", JSON.stringify(token));
+
+      try {
+        console.log("Calling electronAPI.login...");
+        window.electronAPI.login(userId);
+        console.log("electronAPI.login called successfully");
+      } catch (electronError) {
+        console.error("Error calling electronAPI.login:", electronError);
+      }
 
       toast.success("Logged in successfully.");
 
