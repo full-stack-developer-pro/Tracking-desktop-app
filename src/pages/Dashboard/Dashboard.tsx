@@ -31,8 +31,8 @@ export default function Dashboard() {
     }
   };
 
-  const generateRandomNumber = () => {
-    return Math.floor(Math.random() * 10 + 1);
+  const generateRandomNumber = (max: number, min: number): number => {
+    return Math.floor(Math.random() * (max - min + 1) + min);
   };
 
   const uploadCapturedImage = async (img: any) => {
@@ -63,7 +63,7 @@ export default function Dashboard() {
   useEffect(() => {
     var timeOut: any;
     const scheduleCapture = () => {
-      const randomTime = generateRandomNumber();
+      const randomTime = generateRandomNumber(20, 10);
 
       console.log(`Capture in ${randomTime} min`);
 
@@ -71,7 +71,7 @@ export default function Dashboard() {
         captureScreen();
         console.log("Screen captured, Scheduling next");
         scheduleCapture();
-      }, randomTime * 1000);
+      }, randomTime * 60 * 1000);
     };
 
     scheduleCapture();
