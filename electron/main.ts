@@ -6,6 +6,10 @@ import {
   startScreenCapture,
   stopScreenCapture,
 } from "./backgroundTask/screenCapture";
+import {
+  startUserActivityTracking,
+  stopUserActivityTracking,
+} from "./backgroundTask/userActivity";
 
 dotenv.config();
 
@@ -45,15 +49,18 @@ function createWindow() {
   win.on("closed", () => {
     win = null;
     stopScreenCapture();
+    // stopUserActivityTracking();
   });
 }
 
 ipcMain.on("login-success", (event, userId) => {
   startScreenCapture(userId);
+  // startUserActivityTracking(userId);
 });
 
 ipcMain.on("logout", () => {
   stopScreenCapture();
+  // stopUserActivityTracking();
 });
 
 ipcMain.handle("get-env-variable", (event, key) => {
@@ -75,6 +82,7 @@ app.on("activate", () => {
 
 app.on("window-all-closed", () => {
   stopScreenCapture();
+  // stopUserActivityTracking();
   if (process.platform !== "darwin") {
     app.quit();
   }
