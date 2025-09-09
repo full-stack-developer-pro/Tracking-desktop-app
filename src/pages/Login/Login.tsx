@@ -23,12 +23,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import AuthService from "../../services/AuthServices";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
-import SaveIcon from "@mui/icons-material/Save";
 
 declare global {
   interface Window {
     electronAPI: {
-      login: () => void;
+      login: (userId: string) => void;
       logout: () => void;
     };
   }
@@ -58,19 +57,12 @@ export default function Login() {
     resolver: zodResolver(logInSchema),
   });
 
-  type Data = {
-    email: string;
-    password: string;
-  };
-
-  const onSubmit = async (data: Data) => {
+  const onSubmit = async (data: { email: string; password: string }) => {
     try {
       const res = await AuthService.login(data);
       // console.log("login res", res);
-      const user = res?.data?.data?.user;
-      const token = res?.data?.data?.token;
-      const role = res?.data?.data?.user?.role;
-      const userId = res?.data?.data?.user._id;
+      const { user, token } = res?.data?.data;
+      const { _id, role } = res?.data?.data?.user;
 
       const rolePaths: Record<string, string> = {
         admin: "/admin/dashboard",
@@ -87,19 +79,13 @@ export default function Login() {
       }
 
       localStorage.setItem("user", JSON.stringify(user));
-      localStorage.setItem("userId", JSON.stringify(userId));
+      localStorage.setItem("userId", JSON.stringify(_id));
       localStorage.setItem("role", JSON.stringify(role));
       localStorage.setItem("token", JSON.stringify(token));
 
-      try {
-        console.log("Calling electronAPI.login...");
-        window.electronAPI.login(userId);
-        console.log("electronAPI.login called successfully");
-      } catch (electronError) {
-        console.error("Error calling electronAPI.login:", electronError);
-      }
+      window.electronAPI.login(_id);
 
-      toast.success("Logged in successfully.");
+      toast.success(res.data.message || "Logged in successfully.");
 
       navigate(redirectPath);
     } catch (error: any) {
@@ -303,9 +289,7 @@ export default function Login() {
                     type="submit"
                     fullWidth
                     loading={isSubmitting}
-                    // loading
                     loadingPosition="end"
-                    endIcon={<SaveIcon />}
                     variant="outlined"
                   >
                     {isSubmitting ? "Please wait..." : "Sign in"}

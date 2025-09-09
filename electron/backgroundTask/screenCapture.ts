@@ -1,11 +1,12 @@
-// electron/backgroundTask/screenCapture.ts
 import { desktopCapturer, app } from "electron";
 import fs from "fs";
 import path from "path";
 import axios from "axios";
 import FormData from "form-data";
+import DataService from "../../src/services/DataServices";
 
 let captureInterval: NodeJS.Timeout | null = null;
+let loggedInUserId: string;
 
 export const startScreenCapture = (userId: string) => {
   if (captureInterval) {
@@ -13,7 +14,9 @@ export const startScreenCapture = (userId: string) => {
     return;
   }
 
-  scheduleCapture(userId);
+  loggedInUserId = userId;
+
+  scheduleCapture();
 };
 
 export const stopScreenCapture = () => {
@@ -24,22 +27,22 @@ export const stopScreenCapture = () => {
   }
 };
 
-function scheduleCapture(userId: string) {
-  const nextInterval = getRandomMinutes(10, 20);
+function scheduleCapture() {
+  const nextInterval = getRandomMinutes(20, 10);
   console.log(`Next screenshot scheduled in ${nextInterval} minutes`);
 
   captureInterval = setTimeout(async () => {
-    console.log("🎬 Starting scheduled capture...");
-    await captureScreen(userId);
-    scheduleCapture(userId);
-  }, nextInterval * 1000);
+    // console.log("Starting scheduled capture...");
+    await captureScreen();
+    scheduleCapture();
+  }, nextInterval * 60 * 1000);
 }
 
-function getRandomMinutes(min: number, max: number) {
+function getRandomMinutes(max: number, min: number) {
   return Math.floor(Math.random() * (max - min + 1) + min);
 }
 
-async function captureScreen(userId: string) {
+async function captureScreen() {
   try {
     const sources = await desktopCapturer.getSources({
       types: ["screen"],
@@ -47,7 +50,7 @@ async function captureScreen(userId: string) {
     });
 
     if (!sources[0]) {
-      console.error("❌ No screen source found");
+      console.error("No screen source found");
       return;
     }
 
@@ -58,27 +61,25 @@ async function captureScreen(userId: string) {
     );
 
     fs.writeFileSync(screenshotPath, buffer);
-    console.log(`📸 Screenshot saved to ${screenshotPath}`);
+    // console.log(`Screenshot saved to ${screenshotPath}`);
 
-    await uploadScreenshot(screenshotPath, userId);
+    await uploadScreenshot(screenshotPath);
     fs.unlinkSync(screenshotPath);
   } catch (err) {
-    console.error("❌ Screen capture failed:", err);
+    console.error("Screen capture failed:", err);
   }
 }
 
-async function uploadScreenshot(filePath: string, userId: string) {
+async function uploadScreenshot(filePath: string) {
   try {
-    const form = new FormData();
-    form.append("image", fs.createReadStream(filePath));
-    form.append("userId", userId);
+    const formData = new FormData();
+    formData.append("image", fs.createReadStream(filePath));
+    formData.append("userId", loggedInUserId);
 
-    await axios.post("http://localhost:3000/api/upload/image", form, {
-      headers: form.getHeaders(),
-    });
+    const res = await DataService.uploadImage(formData);
 
-    console.log("✅ Screenshot uploaded successfully");
+    if (res.status === 200) console.log("Screenshot uploaded successfully");
   } catch (err) {
-    console.error("❌ Screenshot upload failed:", err);
+    console.error("Screenshot upload failed:", err);
   }
 }
