@@ -10,13 +10,13 @@ type Data = {
 };
 
 const login = (data: Data) => {
-  return axios.post(API_URL + "/api/user/login", data, {
+  return axios.post(API_URL + "/api/auth/sign-in", data, {
     withCredentials: true,
   });
 };
 
 const logout = () => {
-  return axios.get(API_URL + "/api/user/logout", {
+  return axios.get(API_URL + "/api/auth/sign-out", {
     withCredentials: true,
   });
 };

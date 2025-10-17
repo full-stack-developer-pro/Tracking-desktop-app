@@ -3,14 +3,16 @@ import getRandomMinutes from "../utils/getRandomMinutes";
 
 let captureInterval: NodeJS.Timeout | null = null;
 let loggedInUserId: string;
+let loggedInCompanyId: string;
 
-const startScreenCapture = (userId: string) => {
+const startScreenCapture = (userId: string, companyId: string) => {
   if (captureInterval) {
     console.log("Screen capture already running");
     return;
   }
 
   loggedInUserId = userId;
+  loggedInCompanyId = companyId;
 
   scheduleCapture();
 };
@@ -21,15 +23,17 @@ const scheduleCapture = async () => {
 
   captureInterval = setTimeout(async () => {
     console.log("Starting scheduled capture...");
-    await captureScreen(loggedInUserId);
+    await captureScreen(loggedInUserId, loggedInCompanyId);
     scheduleCapture();
-  }, nextInterval * 60 * 1000);
+  }, nextInterval * 1000);
 };
 
 const stopScreenCapture = () => {
   if (captureInterval) {
     clearTimeout(captureInterval);
     captureInterval = null;
+    loggedInUserId = "";
+    loggedInCompanyId = "";
     console.log("Screen capture stopped");
   }
 };

@@ -53,8 +53,8 @@ function createWindow() {
   });
 }
 
-ipcMain.on("login-success", (event, userId) => {
-  startScreenCapture(userId);
+ipcMain.on("login", (event, userId, companyId) => {
+  startScreenCapture(userId, companyId);
   // startUserActivityTracking(userId);
 });
 

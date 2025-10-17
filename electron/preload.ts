@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld("ipcRenderer", {
 contextBridge.exposeInMainWorld("electronAPI", {
   getEnv: (key: any) => ipcRenderer.invoke("get-env-variable", key),
   captureScreen: () => ipcRenderer.invoke("capture-screen"),
-  login: (userId: string) => ipcRenderer.send("login-success", userId),
+  login: (userId: string, companyId: string) =>
+    ipcRenderer.send("login", userId, companyId),
   logout: () => ipcRenderer.send("logout"),
 });

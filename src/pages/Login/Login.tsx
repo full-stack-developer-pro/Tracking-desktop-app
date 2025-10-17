@@ -27,7 +27,7 @@ import { toast } from "react-toastify";
 declare global {
   interface Window {
     electronAPI: {
-      login: (userId: string) => void;
+      login: (userId: string, companyId: string) => void;
       logout: () => void;
     };
   }
@@ -62,7 +62,7 @@ export default function Login() {
       const res = await AuthService.login(data);
       // console.log("login res", res);
       const { user, token } = res?.data?.data;
-      const { _id, role } = res?.data?.data?.user;
+      const { _id, role, companyId } = res?.data?.data?.user;
 
       const rolePaths: Record<string, string> = {
         admin: "/admin/dashboard",
@@ -79,11 +79,12 @@ export default function Login() {
       }
 
       localStorage.setItem("user", JSON.stringify(user));
+      localStorage.setItem("companyId", JSON.stringify(companyId));
       localStorage.setItem("userId", JSON.stringify(_id));
       localStorage.setItem("role", JSON.stringify(role));
       localStorage.setItem("token", JSON.stringify(token));
 
-      window.electronAPI.login(_id);
+      window.electronAPI.login(_id, companyId);
 
       toast.success(res.data.message || "Logged in successfully.");
 

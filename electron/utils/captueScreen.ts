@@ -5,6 +5,7 @@ import uploadScreenshot from "./uploadScreenshot";
 
 const captureScreen = async (
   userId: string,
+  companyId: string,
   metaData?: { activity?: string; inActiveDuration?: number }
 ) => {
   try {
@@ -29,6 +30,7 @@ const captureScreen = async (
     await uploadScreenshot({
       screenshotPath,
       userId,
+      companyId,
       metaData,
     });
 

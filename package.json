@@ -17,7 +17,7 @@
     "@mui/joy": "^5.0.0-beta.52",
     "@mui/material": "^6.5.0",
     "@tailwindcss/vite": "^4.1.12",
-    "axios": "^1.11.0",
+    "axios": "^1.12.2",
     "dotenv": "^17.2.2",
     "form-data": "^4.0.4",
     "react": "^18.2.0",
