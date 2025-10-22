@@ -3,11 +3,11 @@ import path from "path";
 import fs from "fs";
 import uploadScreenshot from "./uploadScreenshot";
 
-const captureScreen = async (
+async function captureScreen(
   userId: string,
-  companyId: string,
-  metaData?: { activity?: string; inActiveDuration?: number }
-) => {
+  activity?: string,
+  inActiveDuration?: number
+) {
   try {
     const sources = await desktopCapturer.getSources({
       types: ["screen"],
@@ -26,18 +26,13 @@ const captureScreen = async (
     );
 
     fs.writeFileSync(screenshotPath, buffer);
+    // console.log(`Screenshot saved to ${screenshotPath}`);
 
-    await uploadScreenshot({
-      screenshotPath,
-      userId,
-      companyId,
-      metaData,
-    });
-
+    await uploadScreenshot(screenshotPath, userId, activity, inActiveDuration);
     fs.unlinkSync(screenshotPath);
   } catch (err) {
     console.error("Screen capture failed:", err);
   }
-};
+}
 
 export default captureScreen;

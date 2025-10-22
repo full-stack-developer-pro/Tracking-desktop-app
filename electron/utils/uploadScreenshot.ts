@@ -1,61 +1,26 @@
 import fs from "fs";
-import axios from "axios";
 import FormData from "form-data";
+import DataService from "../../src/services/DataServices";
 
-interface UploadData {
-  screenshotPath: string;
-  userId: string;
-  companyId: string;
-  metaData?: {
-    activity?: string;
-    inActiveDuration?: number;
-  };
-}
-
-const uploadScreenshot = async (data: UploadData) => {
+async function uploadScreenshot(
+  filePath: string,
+  loggedInUserId: string,
+  activity?: string,
+  inActiveDuration?: number
+) {
   try {
-    const { screenshotPath, userId, metaData, companyId } = data;
-
-    if (!fs.existsSync(screenshotPath)) {
-      console.error("❌ Screenshot file not found:", screenshotPath);
-      return;
-    }
-
     const formData = new FormData();
+    formData.append("image", fs.createReadStream(filePath));
+    formData.append("userId", loggedInUserId);
+    formData.append("activity", activity);
+    formData.append("inActiveDuration", inActiveDuration);
 
-    const fileBuffer = fs.readFileSync(screenshotPath);
-    formData.append("image", fileBuffer, `screenshot_${Date.now()}.png`);
-    formData.append("userId", userId);
-    formData.append("companyId", companyId);
+    const res = await DataService.uploadImage(formData);
 
-    if (metaData?.activity) formData.append("activity", metaData.activity);
-    if (metaData?.inActiveDuration !== undefined) {
-      formData.append("inActiveDuration", String(metaData.inActiveDuration));
-    }
-
-    console.log("📤 Uploading screenshot...");
-
-    // Manual headers instead of using getHeaders()
-    const res = await axios.post(
-      "http://localhost:3000/api/upload/image",
-      formData,
-      {
-        headers: {
-          "Content-Type": "multipart/form-data",
-          // If you need specific boundary, you can set it manually
-          // "Content-Type": `multipart/form-data; boundary=${formData.getBoundary()}`
-        },
-      }
-    );
-
-    if (res.status === 200) {
-      console.log("✅ Screenshot uploaded successfully");
-    } else {
-      console.error("❌ Upload failed with status:", res.status);
-    }
-  } catch (err: any) {
-    console.error("❌ Screenshot upload failed:", err.message);
+    if (res.status === 200) console.log("Screenshot uploaded successfully");
+  } catch (err) {
+    console.error("Screenshot upload failed:", err);
   }
-};
+}
 
 export default uploadScreenshot;

@@ -2,20 +2,12 @@ import { powerMonitor } from "electron";
 import captureScreen from "../utils/captueScreen";
 
 let activityInterval: NodeJS.Timeout | null = null;
-// const CHECK_INTERVAL_SECONDS = 60;
-// const INACTIVE_THRESHOLD_MINUTES = 10;
-// const REPEAT_CAPTURE_MINUTES = 10;
 
-const CHECK_INTERVAL_SECONDS = 5;
-const INACTIVE_THRESHOLD_SECONDS = 20;
+const CHECK_INTERVAL_SECONDS = 20;
+const INACTIVE_THRESHOLD_SECONDS = 300;
 
 let lastScreenshotTime = 0;
 let userInactive = false;
-
-// const data = {
-//   activity: "in-active",
-//   inActiveDuration: inactiveSeconds,
-// };
 
 const startUserActivityTracking = (userId: string) => {
   if (activityInterval) return;
@@ -28,29 +20,22 @@ const startUserActivityTracking = (userId: string) => {
       const now = Date.now();
 
       console.log(`User inactive for ${inactiveSeconds}s`);
-      // INACTIVE_THRESHOLD_MINUTES * 60
       if (inactiveSeconds >= INACTIVE_THRESHOLD_SECONDS) {
         if (!userInactive) {
           console.log(
             "User inactive for 10+ minutes, taking first screenshot..."
           );
+
           lastScreenshotTime = now;
           userInactive = true;
 
-          await captureScreen(userId, {
-            activity: "in-active",
-            inActiveDuration: inactiveSeconds,
-          });
+          await captureScreen(userId, "in-active", inactiveSeconds);
         } else if (
           now - lastScreenshotTime >=
-          // REPEAT_CAPTURE_MINUTES * 60 * 1000
           INACTIVE_THRESHOLD_SECONDS * 1000
         ) {
           console.log("User still inactive, taking another screenshot...");
-          await captureScreen(userId, {
-            activity: "in-active",
-            inActiveDuration: inactiveSeconds,
-          });
+          await captureScreen(userId, "in-active", inactiveSeconds);
           lastScreenshotTime = now;
         }
       } else {

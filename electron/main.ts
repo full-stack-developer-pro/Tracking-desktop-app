@@ -10,7 +10,6 @@ import {
   startUserActivityTracking,
   stopUserActivityTracking,
 } from "./backgroundTask/userActivity";
-import { google } from "googleapis";
 
 dotenv.config();
 
@@ -54,8 +53,8 @@ function createWindow() {
   });
 }
 
-ipcMain.on("login", (event, userId, companyId) => {
-  startScreenCapture(userId, companyId);
+ipcMain.on("login", (event, userId) => {
+  startScreenCapture(userId);
   startUserActivityTracking(userId);
 });
 
@@ -87,51 +86,4 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     app.quit();
   }
-});
-
-// Google OAuth function
-ipcMain.handle("google-oauth", async () => {
-  return new Promise((resolve, reject) => {
-    const authWindow = new BrowserWindow({
-      width: 500,
-      height: 600,
-      modal: true,
-      show: true,
-      webPreferences: { nodeIntegration: false, contextIsolation: true },
-    });
-
-    const clientId = "YOUR_GOOGLE_CLIENT_ID";
-    const redirectUri = "urn:ietf:wg:oauth:2.0:oob"; // Google allows this in Electron
-    const scope = encodeURIComponent("email profile openid");
-
-    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=${clientId}&redirect_uri=${redirectUri}&scope=${scope}&prompt=select_account`;
-
-    authWindow.loadURL(authUrl);
-
-    authWindow.webContents.on("will-redirect", async (event, url) => {
-      if (url.startsWith(redirectUri)) {
-        const codeMatch = /code=([\w\/\-]+)/.exec(url);
-        const code = codeMatch && codeMatch[1];
-
-        if (!code) {
-          reject("No code found");
-          authWindow.close();
-          return;
-        }
-
-        // Exchange code for token at backend
-        const response = await fetch("http://localhost:5000/api/auth/googleOAuth", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ code }),
-        });
-        const data = await response.json();
-
-        resolve(data); // Send user + token back to React
-        authWindow.close();
-      }
-    });
-
-    authWindow.on("closed", () => reject("User closed window"));
-  });
 });
