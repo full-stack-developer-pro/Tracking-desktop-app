@@ -1,7 +1,7 @@
 import { desktopCapturer, app } from "electron";
 import fs from "fs";
 import path from "path";
-import axios from "axios";
+// import axios from "axios";
 import FormData from "form-data";
 import DataService from "../../src/services/DataServices";
 
@@ -16,7 +16,7 @@ export const startScreenCapture = (userId: string) => {
 
   loggedInUserId = userId;
 
-  scheduleCapture();
+  scheduleCapture(loggedInUserId);
 };
 
 export const stopScreenCapture = () => {
@@ -27,14 +27,14 @@ export const stopScreenCapture = () => {
   }
 };
 
-function scheduleCapture() {
+function scheduleCapture(loggedInUserId: string) {
   const nextInterval = getRandomMinutes(20, 10);
   console.log(`Next screenshot scheduled in ${nextInterval} minutes`);
 
   captureInterval = setTimeout(async () => {
     // console.log("Starting scheduled capture...");
-    await captureScreen();
-    scheduleCapture();
+    await captureScreen(loggedInUserId);
+    scheduleCapture(loggedInUserId);
   }, nextInterval * 60 * 1000);
 }
 
@@ -42,7 +42,7 @@ function getRandomMinutes(max: number, min: number) {
   return Math.floor(Math.random() * (max - min + 1) + min);
 }
 
-async function captureScreen() {
+async function captureScreen(loggedInUserId: string) {
   try {
     const sources = await desktopCapturer.getSources({
       types: ["screen"],
@@ -63,14 +63,14 @@ async function captureScreen() {
     fs.writeFileSync(screenshotPath, buffer);
     // console.log(`Screenshot saved to ${screenshotPath}`);
 
-    await uploadScreenshot(screenshotPath);
+    await uploadScreenshot(screenshotPath, loggedInUserId);
     fs.unlinkSync(screenshotPath);
   } catch (err) {
     console.error("Screen capture failed:", err);
   }
 }
 
-async function uploadScreenshot(filePath: string) {
+async function uploadScreenshot(filePath: string, loggedInUserId: string) {
   try {
     const formData = new FormData();
     formData.append("image", fs.createReadStream(filePath));

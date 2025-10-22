@@ -10,7 +10,7 @@ type Data = {
 };
 
 const login = (data: Data) => {
-  return axios.post(API_URL + "/api/user/login", data, {
+  return axios.post(API_URL + "/api/auth/sign-in", data, {
     withCredentials: true,
   });
 };
