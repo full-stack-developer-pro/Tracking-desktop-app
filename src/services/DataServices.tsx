@@ -5,9 +5,17 @@ const API_URL: string =
 // console.log("api url", import.meta.env.VITE_LOCAL_BACKEND_URL);
 
 const uploadImage = (data: any) => {
-  return axios.post(API_URL + "/api/upload/image", data);
+  return axios.post(`${API_URL}/api/upload/image`, data);
 };
 
-const DataService = { uploadImage };
+const getTrackingSettings = (companyId: string) => {
+  return axios.get(`API_URL/api/trackings/${companyId}`, {
+    headers: {
+      Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
+    },
+  });
+};
+
+const DataService = { uploadImage, getTrackingSettings };
 
 export default DataService;
