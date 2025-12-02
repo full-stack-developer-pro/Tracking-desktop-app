@@ -20,21 +20,44 @@ import GoogleIcon from "./GoogleIcon";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import AuthService from "../../services/AuthServices";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
+import { login } from "../../services/AuthServices";
+import { getTrackingSettings } from "../../services/DataServices";
 
 declare global {
   interface Window {
-    electronAPI: {
-      login: (userId: string, companyId: string) => void;
+    electronAPI?: {
+      login: (userId: string, trackingSettings: any) => void;
       logout: () => void;
+      testConnection: () => Promise<any>;
+      getCookies: () => Promise<any>;
     };
   }
 }
 
 export default function Login() {
   const navigate = useNavigate();
+  const [isElectronAvailable, setIsElectronAvailable] = React.useState(false);
+  const [isTestingConnection, setIsTestingConnection] = React.useState(false);
+
+  React.useEffect(() => {
+    const checkElectronAPI = async () => {
+      if (window.electronAPI) {
+        setIsElectronAvailable(true);
+        try {
+          setIsTestingConnection(true);
+          await window.electronAPI.testConnection();
+        } catch (error) {
+          console.warn("Could not test API connection");
+        } finally {
+          setIsTestingConnection(false);
+        }
+      }
+    };
+
+    checkElectronAPI();
+  }, []);
 
   const logInSchema = z.object({
     email: z
@@ -59,45 +82,60 @@ export default function Login() {
 
   const onSubmit = async (data: { email: string; password: string }) => {
     try {
-      const res = await AuthService.login(data);
-      // console.log("login res", res);
-      const { user, token } = res?.data?.data;
-      const { _id, role, companyId } = res?.data?.data?.user;
+      const res = await login(data);
+      const { user, accessToken } = res?.data?.data;
+      const { _id: userId, role, companyId } = user;
 
-      const rolePaths: Record<string, string> = {
-        admin: "/admin/dashboard",
-        HR: "/dashboard/hr",
-        TL: "/dashboard/tl",
-        User: "/dashboard/user",
-      };
+      const companyIdValue =
+        typeof companyId === "string" ? companyId : companyId?._id || companyId;
 
-      const redirectPath = rolePaths[role];
+      console.log("Company ID:", companyIdValue);
 
-      if (!redirectPath) {
-        toast.error("Access denied! Unknown role.");
-        return;
+      let trackingSettings = null;
+      if (companyIdValue && companyIdValue !== "unknown") {
+        try {
+          const settingsRes = await getTrackingSettings(companyIdValue);
+          trackingSettings = settingsRes.data?.data || settingsRes.data;
+          console.log("Fetched tracking settings:", trackingSettings);
+        } catch (settingsError: any) {
+          console.error("Failed to fetch tracking settings:", settingsError);
+        }
       }
 
       localStorage.setItem("user", JSON.stringify(user));
-      localStorage.setItem("companyId", JSON.stringify(companyId));
-      localStorage.setItem("userId", JSON.stringify(_id));
-      localStorage.setItem("role", JSON.stringify(role));
-      localStorage.setItem("token", JSON.stringify(token));
-
-      window.electronAPI.login(_id, companyId);
-
-      toast.success(res.data.message || "Logged in successfully.");
-
-      navigate(redirectPath);
-    } catch (error: any) {
-      console.log(error);
-      toast.error(
-        error.response.data.message ||
-          error.message ||
-          "Login failed. Please check your credentials."
+      localStorage.setItem("companyId", companyIdValue || "");
+      localStorage.setItem("userId", userId);
+      localStorage.setItem("role", role);
+      localStorage.setItem("token", accessToken);
+      localStorage.setItem(
+        "trackingSettings",
+        JSON.stringify(trackingSettings)
       );
 
-      console.log(error);
+      if (!trackingSettings?.isActive) {
+        console.log("Tracking is disabled for this company");
+        toast.info("Tracking is disabled for your company");
+      }
+
+      if (window.electronAPI) {
+        try {
+          window.electronAPI.login(userId, trackingSettings);
+          toast.success("Desktop tracking started!");
+        } catch (electronError: any) {
+          console.error("Desktop tracking error:", electronError);
+          toast.warning("Login successful, but desktop tracking failed");
+        }
+      } else {
+        toast.success("Logged in successfully");
+      }
+
+      navigate("/dashboard");
+    } catch (error: any) {
+      const errorMessage =
+        error.response?.data?.message ||
+        error.message ||
+        "Login failed. Please check your credentials.";
+      toast.error(errorMessage);
     }
   };
 
@@ -207,6 +245,30 @@ export default function Login() {
               },
             }}
           >
+            {isElectronAvailable && (
+              <Box
+                sx={{
+                  backgroundColor: "primary.softBg",
+                  padding: "10px",
+                  borderRadius: "8px",
+                  marginBottom: "10px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 1,
+                }}
+              >
+                <Typography
+                  level="body-sm"
+                  sx={{ color: "primary.plainColor" }}
+                >
+                  🖥️ Desktop App Mode
+                </Typography>
+                {isTestingConnection && (
+                  <Typography level="body-xs">Testing connection...</Typography>
+                )}
+              </Box>
+            )}
+
             <Stack sx={{ gap: 4, mb: 2 }}>
               <Stack sx={{ gap: 1 }}>
                 <Typography component="h1" level="h3">
@@ -243,11 +305,11 @@ export default function Login() {
               <form onSubmit={handleSubmit(onSubmit)}>
                 <FormControl required>
                   <FormLabel>Email</FormLabel>
-
                   <Input
                     error={!!errors.email}
                     placeholder="Enter your email"
                     {...register("email")}
+                    type="email"
                   />
                   {errors.email && (
                     <p style={{ color: "red", fontSize: "0.8rem" }}>
@@ -258,10 +320,9 @@ export default function Login() {
 
                 <FormControl required>
                   <FormLabel>Password</FormLabel>
-
                   <Input
                     {...register("password")}
-                    // type="password"
+                    type="password"
                     error={!!errors.password}
                     placeholder="Enter your password"
                   />
@@ -293,11 +354,26 @@ export default function Login() {
                     loadingPosition="end"
                     variant="outlined"
                   >
-                    {isSubmitting ? "Please wait..." : "Sign in"}
+                    {isSubmitting ? "Logging in..." : "Sign in"}
                   </Button>
                 </Stack>
               </form>
             </Stack>
+
+            {!isElectronAvailable && (
+              <Box
+                sx={{
+                  backgroundColor: "neutral.softBg",
+                  padding: "10px",
+                  borderRadius: "8px",
+                  marginTop: "10px",
+                }}
+              >
+                <Typography level="body-sm" sx={{ color: "text.tertiary" }}>
+                  🌐 Browser Mode: Desktop features not available
+                </Typography>
+              </Box>
+            )}
           </Box>
 
           <Box component="footer" sx={{ py: 3 }}>

@@ -1,11 +1,10 @@
-import * as React from "react";
 import Button from "@mui/joy/Button";
 import Typography from "@mui/joy/Typography";
 import ArrowForward from "@mui/icons-material/ArrowForward";
 import TwoSidedLayout from "./TwoSidedLayout";
 import { Link } from "react-router-dom";
 
-export default function HeroLeft01() {
+function HeroLeft01() {
   return (
     <TwoSidedLayout>
       <Typography color="primary" sx={{ fontSize: "lg", fontWeight: "lg" }}>
@@ -52,9 +51,9 @@ export default function HeroLeft01() {
           left: "50%",
           transform: "translateX(-50%)",
         }}
-      >
-        HeroLeft01
-      </Typography>
+      ></Typography>
     </TwoSidedLayout>
   );
 }
+
+export default HeroLeft01;

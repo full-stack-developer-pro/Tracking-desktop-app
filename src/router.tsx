@@ -9,9 +9,7 @@ const router = (
       <Route path="/" element={<HomePage />} />
       <Route path="/login" element={<Login />} />
 
-      <Route path="/admin">
-        <Route path="dashboard" element={<Dashboard />} />
-      </Route>
+      <Route path="/dashboard" element={<Dashboard />} />
     </Routes>
   </BrowserRouter>
 );

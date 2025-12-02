@@ -3,12 +3,9 @@ import App from "./App.tsx";
 import "./index.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
-  // <React.StrictMode>
   <App />
-  // </React.StrictMode>
 );
 
-// Use contextBridge
 window.ipcRenderer.on("main-process-message", (_event, message) => {
   console.log(message);
 });
@@ -16,7 +13,6 @@ window.ipcRenderer.on("main-process-message", (_event, message) => {
 const { BrowserWindow, ipcMain } = require("electron");
 const { google } = require("googleapis");
 
-// Google OAuth Config
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
   process.env.GOOGLE_CLIENT_SECRET,
@@ -46,7 +42,7 @@ ipcMain.handle("google-oauth", async () => {
 
         try {
           const { tokens } = await oauth2Client.getToken(code);
-          resolve(tokens.id_token); // send token to renderer
+          resolve(tokens.id_token); 
           win.close();
         } catch (err) {
           reject(err);

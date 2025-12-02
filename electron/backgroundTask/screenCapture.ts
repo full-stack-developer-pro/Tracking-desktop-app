@@ -1,37 +1,64 @@
-import getRandomMinutes from "../utils/getRandomMinutes";
 import captureScreen from "../utils/captueScreen";
+import uploadScreenshot from "../utils/uploadScreenshot";
 
 let captureInterval: NodeJS.Timeout | null = null;
-let loggedInUserId: string;
+let loggedInUserId: string = "";
+let currentSettings: any = null;
 
-const startScreenCapture = (userId: string) => {
-  if (captureInterval) {
-    console.log("Screen capture already running");
-    return;
-  }
+const startScreenCapture = async (userId: string, trackingSettings: any) => {
+  console.log("Starting screen capture with settings:", trackingSettings);
 
   loggedInUserId = userId;
+  currentSettings = trackingSettings;
 
-  scheduleCapture(loggedInUserId);
+  if (!currentSettings?.randomScreenshot?.enabled)
+    return console.log("Screenshot capture is disabled in settings");
+
+  const intervalMinutes = currentSettings.randomScreenshot?.interval || 20;
+  console.log(`Screenshot interval: ${intervalMinutes} minutes`);
+
+  if (captureInterval) {
+    clearTimeout(captureInterval);
+    captureInterval = null;
+  }
+
+  scheduleNextCapture(intervalMinutes, userId);
 };
 
 const stopScreenCapture = () => {
   if (captureInterval) {
     clearTimeout(captureInterval);
     captureInterval = null;
-    console.log("Screen capture stopped");
   }
+  currentSettings = null;
+  loggedInUserId = "";
+  console.log("Screen capture stopped");
 };
 
-function scheduleCapture(loggedInUserId: string) {
-  const nextInterval = getRandomMinutes(20, 10);
-  console.log(`Next screenshot scheduled in ${nextInterval} minutes`);
+const scheduleNextCapture = async (intervalMinutes: number, userId: string) => {
+  const intervalMs = intervalMinutes * 60 * 1000;
 
   captureInterval = setTimeout(async () => {
-    // console.log("Starting scheduled capture...");
-    await captureScreen(loggedInUserId);
-    scheduleCapture(loggedInUserId);
-  }, nextInterval * 60 * 1000);
-}
+    try {
+      if (currentSettings?.randomScreenshot?.enabled && loggedInUserId) {
+        console.log("Taking scheduled screenshot...");
 
-export { startScreenCapture, stopScreenCapture };
+        const screenshotPath = await captureScreen(userId);
+
+        if (screenshotPath)
+          await uploadScreenshot(screenshotPath, userId, "active");
+      }
+
+      if (currentSettings && loggedInUserId)
+        scheduleNextCapture(intervalMinutes, userId);
+    } catch (error) {
+      console.error("Error in scheduled capture:", error);
+
+      if (currentSettings && loggedInUserId) {
+        scheduleNextCapture(intervalMinutes, userId);
+      }
+    }
+  }, intervalMs);
+};
+
+export { startScreenCapture, stopScreenCapture, currentSettings };

@@ -1,26 +1,20 @@
-import axios from "axios";
+import api from "../../electron/utils/axiosInstance";
 
-const API_URL: string =
-  import.meta.env.VITE_LOCAL_BACKEND_URL || "http://localhost:3000";
-// console.log("api url", import.meta.env.VITE_LOCAL_BACKEND_URL);
-
-type Data = {
+type LoginData = {
   email: string;
   password: string;
 };
 
-const login = (data: Data) => {
-  return axios.post(API_URL + "/api/auth/sign-in", data, {
-    withCredentials: true,
-  });
+const login = (data: LoginData) => {
+  return api.post("/auth/sign-in", data);
 };
 
 const logout = () => {
-  return axios.get(API_URL + "/api/auth/sign-out", {
-    withCredentials: true,
-  });
+  return api.get("/auth/sign-out");
 };
 
-const AuthService = { login, logout };
+const verifyToken = () => {
+  return api.get("/auth/verify");
+};
 
-export default AuthService;
+export { login, logout, verifyToken };

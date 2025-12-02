@@ -1,9 +1,8 @@
-import { desktopCapturer } from "electron";
+import { desktopCapturer, app } from "electron";
 import path from "path";
 import fs from "fs";
-import os from "os";
 
-async function captureScreen(userId: string): Promise<string | null> {
+async function takeScreenshot(userId: string): Promise<string | null> {
   try {
     const sources = await desktopCapturer.getSources({
       types: ["screen"],
@@ -16,20 +15,19 @@ async function captureScreen(userId: string): Promise<string | null> {
     }
 
     const buffer = sources[0].thumbnail.toPNG();
-    const tempDir = os.tmpdir();
     const screenshotPath = path.join(
-      tempDir,
+      app.getPath("temp"),
       `screenshot_${Date.now()}_${userId}.png`
     );
 
     fs.writeFileSync(screenshotPath, buffer);
-    console.log(`Screenshot saved: ${screenshotPath}`);
+    console.log(`Screenshot taken: ${screenshotPath}`);
 
     return screenshotPath;
   } catch (err: any) {
-    console.error("Screen capture failed:", err.message);
+    console.error("Failed to take screenshot:", err.message);
     return null;
   }
 }
 
-export default captureScreen;
+export default takeScreenshot;

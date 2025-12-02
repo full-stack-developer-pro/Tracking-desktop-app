@@ -1,21 +1,3 @@
-// import { Button } from "@mui/material";
-// import React from "react";
-// import { Link } from "react-router-dom";
-
-// const HomePage = () => {
-//   return (
-//     <div>
-//       <Button variant="contained">
-//         <Link to={"/login"}>
-//           Login
-//         </Link>
-//       </Button>
-//     </div>
-//   );
-// };
-
-// export default HomePage;
-
 import * as React from "react";
 import { CssVarsProvider, useColorScheme } from "@mui/joy/styles";
 import Box from "@mui/joy/Box";
@@ -25,9 +7,7 @@ import IconButton from "@mui/joy/IconButton";
 import DarkModeRoundedIcon from "@mui/icons-material/DarkModeRounded";
 import LightModeRoundedIcon from "@mui/icons-material/LightModeRounded";
 
-// import framesxTheme from "./theme";
 import HeroLeft01 from "./HeroLeft01";
-// import { Link } from "react-router-dom";
 
 function ColorSchemeToggle() {
   const { mode, setMode } = useColorScheme();
@@ -69,7 +49,6 @@ export default function TeamExample() {
   return (
     <CssVarsProvider
       disableTransitionOnChange
-      // theme={framesxTheme}
     >
       <CssBaseline />
       <ColorSchemeToggle />

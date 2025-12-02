@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain, session } from "electron";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import dotenv from "dotenv";
@@ -33,12 +33,12 @@ function createWindow() {
       preload: path.join(__dirname, "preload.mjs"),
       nodeIntegration: false,
       contextIsolation: true,
+      partition: "persist:tracking-session",
+      webSecurity: true,
     },
   });
 
-  win.webContents.on("did-finish-load", () => {
-    win?.webContents.send("main-process-message", new Date().toLocaleString());
-  });
+  const ses = session.fromPartition("persist:tracking-session");
 
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL);
@@ -53,21 +53,71 @@ function createWindow() {
   });
 }
 
-ipcMain.on("login", (event, userId) => {
-  startScreenCapture(userId);
-  startUserActivityTracking(userId);
+ipcMain.on("login", async (event, userId, trackingSettings) => {
+  try {
+    if (!trackingSettings)
+      return console.error("No tracking settings provided");
+
+    if (!trackingSettings.isActive)
+      return console.log("Tracking is inactive for this user/company");
+
+    startScreenCapture(userId, trackingSettings);
+    startUserActivityTracking(userId, trackingSettings);
+
+    console.log("Tracking services started successfully");
+  } catch (error) {
+    console.error("Login initialization failed:", error);
+  }
 });
 
-ipcMain.on("logout", () => {
+ipcMain.on("logout", async () => {
+  try {
+    const ses = session.fromPartition("persist:tracking-session");
+    await ses.clearStorageData({
+      storages: ["cookies", "localstorage"],
+    });
+  } catch (error) {
+    console.error("Failed to clear session:", error);
+  }
+
   stopScreenCapture();
   stopUserActivityTracking();
 });
 
-ipcMain.handle("get-env-variable", (event, key) => {
-  if (key === "MY_SECRET_KEY") {
-    return process.env.MY_SECRET_KEY;
+ipcMain.handle("test-api-connection", async () => {
+  try {
+    const axios = require("axios");
+    const API_URL =
+      process.env.VITE_LOCAL_BACKEND_URL || "http://localhost:3000";
+
+    const response = await axios.get(`${API_URL}/api/auth/test`, {
+      timeout: 5000,
+    });
+
+    return { success: true, data: response.data };
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error.message,
+      code: error.code,
+    };
   }
-  return null;
+});
+
+ipcMain.handle("get-cookies", async () => {
+  try {
+    const ses = session.fromPartition("persist:tracking-session");
+    const cookies = await ses.cookies.get({});
+    return cookies.map((c) => ({
+      name: c.name,
+      value: c.value.substring(0, 20) + "...",
+      domain: c.domain,
+      path: c.path,
+    }));
+  } catch (error) {
+    console.error("Failed to get cookies:", error);
+    return [];
+  }
 });
 
 app.whenReady().then(() => {

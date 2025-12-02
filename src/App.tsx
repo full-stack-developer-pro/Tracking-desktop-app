@@ -1,4 +1,3 @@
-// App.tsx
 import React from "react";
 import router from "./router";
 import { AuthProvider } from "./context/AuthContext";
@@ -18,7 +17,6 @@ const App = () => {
         draggable
         pauseOnHover
         theme="light"
-        // transition={Zoom}
       />
       {router}
     </AuthProvider>
