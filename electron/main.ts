@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, session } from "electron";
+import { app, BrowserWindow, ipcMain, session, shell } from "electron";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import dotenv from "dotenv";
@@ -13,6 +13,8 @@ import {
 
 dotenv.config();
 
+const PROTOCOL_SCHEME = "tracking-time";
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 process.env.APP_ROOT = path.join(__dirname, "..");
 
@@ -25,6 +27,39 @@ process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL
   : RENDERER_DIST;
 
 let win: BrowserWindow | null;
+
+if (process.defaultApp) {
+  if (process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient(PROTOCOL_SCHEME, process.execPath, [
+      path.resolve(process.argv[1]),
+    ]);
+  }
+} else {
+  app.setAsDefaultProtocolClient(PROTOCOL_SCHEME);
+}
+
+const gotTheLock = app.requestSingleInstanceLock();
+
+if (!gotTheLock) {
+  app.quit();
+} else {
+  app.on("second-instance", (event, commandLine, workingDirectory) => {
+    if (win) {
+      if (win.isMinimized()) win.restore();
+      win.focus();
+    }
+    const deepLinkUrl = commandLine.find((arg) =>
+      arg.startsWith(PROTOCOL_SCHEME + "://")
+    );
+    if (deepLinkUrl) {
+      handleDeepLink(deepLinkUrl);
+    }
+  });
+
+  app.whenReady().then(() => {
+    createWindow();
+  });
+}
 
 function createWindow() {
   win = new BrowserWindow({
@@ -51,6 +86,15 @@ function createWindow() {
     stopScreenCapture();
     stopUserActivityTracking();
   });
+
+  if (process.platform === "win32" || process.platform === "linux") {
+    const deepLinkUrl = process.argv.find((arg) =>
+      arg.startsWith(PROTOCOL_SCHEME + "://")
+    );
+    if (deepLinkUrl) {
+      setTimeout(() => handleDeepLink(deepLinkUrl), 3000);
+    }
+  }
 }
 
 ipcMain.on("login", async (event, userId, trackingSettings) => {
@@ -87,8 +131,7 @@ ipcMain.on("logout", async () => {
 ipcMain.handle("test-api-connection", async () => {
   try {
     const axios = require("axios");
-    const API_URL =
-      process.env.VITE_LOCAL_BACKEND_URL || "http://localhost:3000";
+    const API_URL = process.env.VITE_BACKEND_URL;
 
     const response = await axios.get(`${API_URL}/api/auth/test`, {
       timeout: 5000,
@@ -120,9 +163,46 @@ ipcMain.handle("get-cookies", async () => {
   }
 });
 
-app.whenReady().then(() => {
-  createWindow();
+ipcMain.on("open-browser-auth", (event, url) => {
+  if (url && (url.startsWith("http://") || url.startsWith("https://"))) {
+    shell.openExternal(url);
+  }
 });
+
+app.on("open-url", (event, url) => {
+  event.preventDefault();
+  handleDeepLink(url);
+});
+
+function handleDeepLink(urlStr: string) {
+  try {
+    if (!urlStr.startsWith(PROTOCOL_SCHEME + "://")) return;
+
+    const urlObj = new URL(urlStr);
+    const params = urlObj.searchParams;
+
+    const token = params.get("token");
+    const userId = params.get("userId");
+    const companyId = params.get("companyId");
+    const role = params.get("role");
+
+    if (token && userId) {
+      if (win && win.webContents) {
+        win.webContents.send("deep-link-login", {
+          token,
+          userId,
+          companyId,
+          role,
+        });
+
+        if (win.isMinimized()) win.restore();
+        win.focus();
+      }
+    }
+  } catch (error) {
+    console.error("Error parsing deep link:", error);
+  }
+}
 
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) {

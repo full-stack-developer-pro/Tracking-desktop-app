@@ -1,4 +1,4 @@
-import * as React from "react";
+import React, { useEffect, useState } from "react";
 import { CssVarsProvider, extendTheme, useColorScheme } from "@mui/joy/styles";
 import GlobalStyles from "@mui/joy/GlobalStyles";
 import CssBaseline from "@mui/joy/CssBaseline";
@@ -16,6 +16,7 @@ import Stack from "@mui/joy/Stack";
 import DarkModeRoundedIcon from "@mui/icons-material/DarkModeRounded";
 import LightModeRoundedIcon from "@mui/icons-material/LightModeRounded";
 import BadgeRoundedIcon from "@mui/icons-material/BadgeRounded";
+import OpenInNewRoundedIcon from "@mui/icons-material/OpenInNewRounded";
 import GoogleIcon from "./GoogleIcon";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -32,16 +33,21 @@ declare global {
       logout: () => void;
       testConnection: () => Promise<any>;
       getCookies: () => Promise<any>;
+      openBrowserAuth: (url: string) => void;
+      onDeepLinkLogin: (callback: (data: any) => void) => void;
+      removeDeepLinkListener: () => void;
     };
   }
 }
 
+const WEBSITE_LOGIN_URL = "http://localhost:5173/authorize-app";
+
 export default function Login() {
   const navigate = useNavigate();
-  const [isElectronAvailable, setIsElectronAvailable] = React.useState(false);
-  const [isTestingConnection, setIsTestingConnection] = React.useState(false);
+  const [isElectronAvailable, setIsElectronAvailable] = useState(false);
+  const [isTestingConnection, setIsTestingConnection] = useState(false);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const checkElectronAPI = async () => {
       if (window.electronAPI) {
         setIsElectronAvailable(true);
@@ -56,8 +62,71 @@ export default function Login() {
       }
     };
 
+    if (window.electronAPI && window.electronAPI.onDeepLinkLogin) {
+      window.electronAPI.onDeepLinkLogin(async (data: any) => {
+        const { token, userId, companyId, role } = data;
+
+        toast.info("Verifying session...");
+
+        try {
+          let trackingSettings = null;
+          if (
+            companyId &&
+            companyId !== "unknown" &&
+            companyId !== "undefined"
+          ) {
+            try {
+              const settingsRes = await getTrackingSettings(companyId);
+              trackingSettings = settingsRes.data?.data || settingsRes.data;
+            } catch (err) {
+              console.error("Failed to fetch settings:", err);
+            }
+          }
+
+          if (window.electronAPI) {
+            window.electronAPI.login(userId, trackingSettings);
+            if (!trackingSettings?.isActive) {
+              toast.info("Tracking is disabled for your company.");
+            } else {
+              toast.success("Desktop tracking started!");
+            }
+          }
+
+          localStorage.setItem("token", token);
+          localStorage.setItem("userId", userId);
+          localStorage.setItem("role", role);
+          localStorage.setItem("companyId", companyId || "");
+          localStorage.setItem(
+            "trackingSettings",
+            JSON.stringify(trackingSettings)
+          );
+
+          navigate("/dashboard");
+        } catch (error) {
+          console.error("Deep link initialization error:", error);
+          toast.error("Login successful, but initialization failed.");
+          navigate("/dashboard");
+        }
+      });
+    }
+
     checkElectronAPI();
-  }, []);
+
+    return () => {
+      if (window.electronAPI?.removeDeepLinkListener) {
+        window.electronAPI.removeDeepLinkListener();
+      }
+    };
+  }, [navigate]);
+
+  const handleBrowserLogin = () => {
+    if (window.electronAPI?.openBrowserAuth) {
+      window.electronAPI.openBrowserAuth(WEBSITE_LOGIN_URL);
+      toast.info("Opening browser for authentication...");
+    } else {
+      toast.error("Browser login not supported in this version.");
+    }
+  };
 
   const logInSchema = z.object({
     email: z
@@ -89,14 +158,11 @@ export default function Login() {
       const companyIdValue =
         typeof companyId === "string" ? companyId : companyId?._id || companyId;
 
-      console.log("Company ID:", companyIdValue);
-
       let trackingSettings = null;
       if (companyIdValue && companyIdValue !== "unknown") {
         try {
           const settingsRes = await getTrackingSettings(companyIdValue);
           trackingSettings = settingsRes.data?.data || settingsRes.data;
-          console.log("Fetched tracking settings:", trackingSettings);
         } catch (settingsError: any) {
           console.error("Failed to fetch tracking settings:", settingsError);
         }
@@ -113,7 +179,6 @@ export default function Login() {
       );
 
       if (!trackingSettings?.isActive) {
-        console.log("Tracking is disabled for this company");
         toast.info("Tracking is disabled for your company");
       }
 
@@ -122,7 +187,6 @@ export default function Login() {
           window.electronAPI.login(userId, trackingSettings);
           toast.success("Desktop tracking started!");
         } catch (electronError: any) {
-          console.error("Desktop tracking error:", electronError);
           toast.warning("Login successful, but desktop tracking failed");
         }
       } else {
@@ -142,9 +206,9 @@ export default function Login() {
   function ColorSchemeToggle(props: IconButtonProps) {
     const { onClick, ...other } = props;
     const { mode, setMode } = useColorScheme();
-    const [mounted, setMounted] = React.useState(false);
+    const [mounted, setMounted] = useState(false);
 
-    React.useEffect(() => setMounted(true), []);
+    useEffect(() => setMounted(true), []);
 
     return (
       <IconButton
@@ -249,23 +313,42 @@ export default function Login() {
               <Box
                 sx={{
                   backgroundColor: "primary.softBg",
-                  padding: "10px",
+                  padding: "15px",
                   borderRadius: "8px",
                   marginBottom: "10px",
                   display: "flex",
-                  alignItems: "center",
-                  gap: 1,
+                  flexDirection: "column",
+                  gap: 2,
+                  border: "1px solid",
+                  borderColor: "primary.outlinedBorder",
                 }}
               >
-                <Typography
-                  level="body-sm"
-                  sx={{ color: "primary.plainColor" }}
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                  <Typography
+                    level="body-sm"
+                    sx={{ color: "primary.plainColor", fontWeight: "bold" }}
+                  >
+                    🖥️ Desktop App Mode
+                  </Typography>
+                  {isTestingConnection && (
+                    <Typography level="body-xs">Testing...</Typography>
+                  )}
+                </Box>
+                <Button
+                  variant="solid"
+                  color="primary"
+                  fullWidth
+                  startDecorator={<OpenInNewRoundedIcon />}
+                  onClick={handleBrowserLogin}
                 >
-                  🖥️ Desktop App Mode
+                  Login with Browser (SSO)
+                </Button>
+                <Typography
+                  level="body-xs"
+                  sx={{ textAlign: "center", opacity: 0.7 }}
+                >
+                  Use this if you are already logged in on the website.
                 </Typography>
-                {isTestingConnection && (
-                  <Typography level="body-xs">Testing connection...</Typography>
-                )}
               </Box>
             )}
 
@@ -370,7 +453,7 @@ export default function Login() {
                 }}
               >
                 <Typography level="body-sm" sx={{ color: "text.tertiary" }}>
-                  🌐 Browser Mode: Desktop features not available
+                  Browser Mode: Desktop features not available
                 </Typography>
               </Box>
             )}

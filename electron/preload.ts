@@ -6,6 +6,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
   logout: () => ipcRenderer.send("logout"),
   testConnection: () => ipcRenderer.invoke("test-api-connection"),
   getCookies: () => ipcRenderer.invoke("get-cookies"),
+  openBrowserAuth: (url: string) => ipcRenderer.send("open-browser-auth", url),
+  onDeepLinkLogin: (callback: (data: any) => void) =>
+    ipcRenderer.on("deep-link-login", (event, data) => callback(data)),
+  removeDeepLinkListener: () =>
+    ipcRenderer.removeAllListeners("deep-link-login"),
 });
 
 contextBridge.exposeInMainWorld("ipcRenderer", {
