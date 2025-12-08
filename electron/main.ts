@@ -10,70 +10,30 @@ import {
   startUserActivityTracking,
   stopUserActivityTracking,
 } from "./backgroundTask/userActivity";
+import { autoUpdater, UpdateInfo } from "electron-updater";
+import log from "electron-log";
 
 dotenv.config();
-
 const PROTOCOL_SCHEME = "tracking-time";
+let win: BrowserWindow | null = null;
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 process.env.APP_ROOT = path.join(__dirname, "..");
 
-export const VITE_DEV_SERVER_URL = process.env["VITE_DEV_SERVER_URL"];
-export const MAIN_DIST = path.join(process.env.APP_ROOT, "dist-electron");
-export const RENDERER_DIST = path.join(process.env.APP_ROOT, "dist");
-
-process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL
-  ? path.join(process.env.APP_ROOT, "public")
-  : RENDERER_DIST;
-
-let win: BrowserWindow | null;
-
-if (process.defaultApp) {
-  if (process.argv.length >= 2) {
-    app.setAsDefaultProtocolClient(PROTOCOL_SCHEME, process.execPath, [
-      path.resolve(process.argv[1]),
-    ]);
-  }
-} else {
-  app.setAsDefaultProtocolClient(PROTOCOL_SCHEME);
-}
-
-const gotTheLock = app.requestSingleInstanceLock();
-
-if (!gotTheLock) {
-  app.quit();
-} else {
-  app.on("second-instance", (event, commandLine, workingDirectory) => {
-    if (win) {
-      if (win.isMinimized()) win.restore();
-      win.focus();
-    }
-    const deepLinkUrl = commandLine.find((arg) =>
-      arg.startsWith(PROTOCOL_SCHEME + "://")
-    );
-    if (deepLinkUrl) {
-      handleDeepLink(deepLinkUrl);
-    }
-  });
-
-  app.whenReady().then(() => {
-    createWindow();
-  });
-}
+const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL;
+const preload = path.join(__dirname, "preload.js");
 
 function createWindow() {
   win = new BrowserWindow({
     icon: path.join(process.env.VITE_PUBLIC, "electron-vite.svg"),
     webPreferences: {
-      preload: path.join(__dirname, "preload.mjs"),
+      preload,
       nodeIntegration: false,
       contextIsolation: true,
       partition: "persist:tracking-session",
       webSecurity: true,
     },
   });
-
-  const ses = session.fromPartition("persist:tracking-session");
 
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL);
@@ -95,6 +55,89 @@ function createWindow() {
       setTimeout(() => handleDeepLink(deepLinkUrl), 3000);
     }
   }
+}
+
+autoUpdater.logger = log;
+(autoUpdater.logger as any).transports.file.level = "info";
+
+autoUpdater.on("checking-for-update", () => {
+  log.info("Checking for update...");
+});
+
+autoUpdater.on("update-available", (info: UpdateInfo) => {
+  log.info(`Update available! Version: ${info.version}`);
+});
+
+autoUpdater.on("update-not-available", (info: UpdateInfo) => {
+  log.info(`Update not available. Current version: ${info.version}`);
+});
+
+autoUpdater.on("error", (err: Error) => {
+  log.error("Error in auto-updater:", err.message);
+});
+
+autoUpdater.on("download-progress", (progressObj) => {
+  let msg = `Download speed: ${progressObj.bytesPerSecond} B/s`;
+  msg += ` - Downloaded ${progressObj.percent.toFixed(2)}%`;
+  msg += ` (${progressObj.transferred}/${progressObj.total})`;
+  log.info(msg);
+});
+
+autoUpdater.on("update-downloaded", (info: UpdateInfo) => {
+  log.info(`Update downloaded. Version: ${info.version}`);
+  setTimeout(() => {
+    autoUpdater.quitAndInstall();
+  }, 1000);
+});
+
+export const MAIN_DIST = path.join(process.env.APP_ROOT, "dist-electron");
+export const RENDERER_DIST = path.join(process.env.APP_ROOT, "dist");
+
+process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL
+  ? path.join(process.env.APP_ROOT, "public")
+  : RENDERER_DIST;
+
+if (process.defaultApp) {
+  if (process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient(PROTOCOL_SCHEME, process.execPath, [
+      path.resolve(process.argv[1]),
+    ]);
+  }
+} else {
+  app.setAsDefaultProtocolClient(PROTOCOL_SCHEME);
+}
+
+app.on("activate", () => {
+  if (BrowserWindow.getAllWindows().length === 0) {
+    createWindow();
+  }
+});
+
+const gotTheLock = app.requestSingleInstanceLock();
+
+if (!gotTheLock) {
+  app.quit();
+} else {
+  app.on("second-instance", (event, commandLine, workingDirectory) => {
+    if (win) {
+      if (win.isMinimized()) win.restore();
+      win.focus();
+    }
+    const deepLinkUrl = commandLine.find((arg) =>
+      arg.startsWith(PROTOCOL_SCHEME + "://")
+    );
+    if (deepLinkUrl) {
+      handleDeepLink(deepLinkUrl);
+    }
+  });
+
+  app.whenReady().then(() => {
+    createWindow();
+
+    setTimeout(() => {
+      autoUpdater.checkForUpdatesAndNotify();
+    }, 500);
+  });
 }
 
 ipcMain.on("login", async (event, userId, trackingSettings) => {
@@ -203,12 +246,6 @@ function handleDeepLink(urlStr: string) {
     console.error("Error parsing deep link:", error);
   }
 }
-
-app.on("activate", () => {
-  if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow();
-  }
-});
 
 app.on("window-all-closed", () => {
   stopScreenCapture();
