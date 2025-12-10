@@ -30,7 +30,6 @@ contextBridge.exposeInMainWorld("ipcRenderer", {
   on: (channel: string, func: (...args: any[]) => void) => {
     const validChannels = ["main-process-message"];
     if (validChannels.includes(channel)) {
-      // Deliberately strip event as it includes `sender`
       ipcRenderer.on(channel, (_event, ...args) => func(...args));
     }
   },

@@ -41,14 +41,14 @@ function createWindow() {
   win = new BrowserWindow({
     width: 1200,
     height: 800,
-    show: false, // Don't show until ready
+    show: false,
     icon: path.join(process.env.VITE_PUBLIC as string, "electron-vite.svg"),
     webPreferences: {
       preload,
       nodeIntegration: false,
       contextIsolation: true,
       partition: "persist:tracking-session",
-      webSecurity: false, // Temporary fix for local resource loading if CSP fails
+      webSecurity: false,
     },
   });
 
@@ -57,23 +57,17 @@ function createWindow() {
     win?.show();
   });
 
-  // Check if we are in development mode
   const devUrl = VITE_DEV_SERVER_URL || "http://localhost:5173";
   if (!app.isPackaged) {
     log.info(`Loading DEV URL: ${devUrl}`);
     win.loadURL(devUrl).catch((e) => log.error("Failed to load url:", e));
-    if (!win.webContents.isDevToolsOpened()) win.webContents.openDevTools();
   } else {
-    // Production mode
     const loadUrl = `${CUSTOM_PROTOCOL}://app/index.html`;
     log.info(`Production: Loading ${loadUrl}`);
 
     win.loadURL(loadUrl).catch((e) => {
       log.error("Failed to load custom protocol URL:", e);
     });
-
-    // FORCE OPEN DEVTOOLS IN PRODUCTION FOR DEBUGGING
-    win.webContents.openDevTools();
   }
 
   win.on("closed", () => {
@@ -83,7 +77,6 @@ function createWindow() {
     stopUserActivityTracking();
   });
 
-  // Handle deep link from command line for Windows/Linux after app install/launch
   if (process.platform === "win32" || process.platform === "linux") {
     const deepLinkUrl = process.argv.find((arg) =>
       arg.startsWith(PROTOCOL_SCHEME + "://")
@@ -159,7 +152,6 @@ const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
   app.quit();
 } else {
-  // Register schemes as privileged MUST be done before app is ready
   protocol.registerSchemesAsPrivileged([
     {
       scheme: CUSTOM_PROTOCOL,
@@ -187,10 +179,6 @@ if (!gotTheLock) {
   });
 
   app.whenReady().then(() => {
-    // **Crucial: Since we are using win.loadFile() for the main index.html,
-    // we remove the protocol.handle() block to serve files via the custom protocol,
-    // as it was the source of path errors in the production build.**
-
     if (app.isPackaged) {
       log.info(
         "Registering custom protocol handler for PARTITION 'persist:tracking-session'..."
@@ -199,7 +187,6 @@ if (!gotTheLock) {
 
       ses.protocol.handle(CUSTOM_PROTOCOL, async (request) => {
         try {
-          // url: tracking-app://app/index.html
           const url = new URL(request.url);
           let relativePath = url.pathname;
 
@@ -207,7 +194,6 @@ if (!gotTheLock) {
             relativePath = "/index.html";
           }
 
-          // Decode path (handle spaces etc)
           relativePath = decodeURIComponent(relativePath);
 
           const absolutePath = path.join(
@@ -218,12 +204,9 @@ if (!gotTheLock) {
 
           log.info(`[Protocol] Request: ${request.url} -> ${absolutePath}`);
 
-          // Read file directly (works with ASAR)
-          // Using fs from node-fs usually works best in Main process
           const fs = await import("fs/promises");
           const data = await fs.readFile(absolutePath);
 
-          // Determine mime type (basic)
           const ext = path.extname(absolutePath);
           let mimeType = "text/html";
           if (ext === ".js") mimeType = "text/javascript";
@@ -285,7 +268,6 @@ ipcMain.handle("test-api-connection", async () => {
   try {
     const API_URL = process.env.VITE_BACKEND_URL;
 
-    // Axios is now imported at the top
     const response = await axios.get(`${API_URL}/api/auth/test`, {
       timeout: 5000,
     });
@@ -355,7 +337,6 @@ ipcMain.handle("google-oauth", async () => {
     });
 
     authWin.on("closed", () => {
-      // Ensure promise isn't left hanging if user closes window manually
       reject(new Error("User closed the login window"));
     });
   });
