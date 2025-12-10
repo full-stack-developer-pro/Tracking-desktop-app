@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { CssVarsProvider, extendTheme, useColorScheme } from "@mui/joy/styles";
 import GlobalStyles from "@mui/joy/GlobalStyles";
 import CssBaseline from "@mui/joy/CssBaseline";
@@ -25,20 +25,6 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { login } from "../../services/AuthServices";
 import { getTrackingSettings } from "../../services/DataServices";
-
-declare global {
-  interface Window {
-    electronAPI?: {
-      login: (userId: string, trackingSettings: any) => void;
-      logout: () => void;
-      testConnection: () => Promise<any>;
-      getCookies: () => Promise<any>;
-      openBrowserAuth: (url: string) => void;
-      onDeepLinkLogin: (callback: (data: any) => void) => void;
-      removeDeepLinkListener: () => void;
-    };
-  }
-}
 
 const WEBSITE_LOGIN_URL = "http://localhost:5173/authorize-app";
 

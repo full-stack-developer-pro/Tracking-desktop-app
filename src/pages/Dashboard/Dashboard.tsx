@@ -6,13 +6,14 @@ import { getTrackingSettings } from "../../services/DataServices";
 
 function Dashboard() {
   const navigate = useNavigate();
-  const user = JSON.parse(localStorage.getItem("user"));
+  const userString = localStorage.getItem("user");
+  const user = JSON.parse(userString || "{}");
 
-  console.log(user)
+  console.log(user);
 
   const handleLogout = async () => {
     try {
-      window.electronAPI.logout();
+      window.electronAPI?.logout();
 
       localStorage.removeItem("userId");
       localStorage.removeItem("token");
