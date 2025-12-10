@@ -8,9 +8,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getCookies: () => ipcRenderer.invoke("get-cookies"),
   openBrowserAuth: (url: string) => ipcRenderer.send("open-browser-auth", url),
   onDeepLinkLogin: (callback: (data: any) => void) =>
-    ipcRenderer.on("deep-link-login", (event, data) => callback(data)),
+    ipcRenderer.on("deep-link-login", (_event, data) => callback(data)),
   removeDeepLinkListener: () =>
     ipcRenderer.removeAllListeners("deep-link-login"),
+  googleOAuth: () => ipcRenderer.invoke("google-oauth"),
 });
 
 contextBridge.exposeInMainWorld("ipcRenderer", {
@@ -24,6 +25,19 @@ contextBridge.exposeInMainWorld("ipcRenderer", {
     const validChannels = ["test-api-connection", "get-cookies"];
     if (validChannels.includes(channel)) {
       return ipcRenderer.invoke(channel, ...args);
+    }
+  },
+  on: (channel: string, func: (...args: any[]) => void) => {
+    const validChannels = ["main-process-message"];
+    if (validChannels.includes(channel)) {
+      // Deliberately strip event as it includes `sender`
+      ipcRenderer.on(channel, (_event, ...args) => func(...args));
+    }
+  },
+  removeAllListeners: (channel: string) => {
+    const validChannels = ["main-process-message"];
+    if (validChannels.includes(channel)) {
+      ipcRenderer.removeAllListeners(channel);
     }
   },
 });

@@ -1,17 +1,29 @@
 {
   "name": "tracking-desktop-app",
   "private": true,
+  "description": "A desktop application for tracking time and activity",
+  "author": "Tracking Time Team",
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build && electron-builder",
+    "dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && npm run electron-dev\"",
+    "electron-dev": "electron .",
+    "build": "vite build && electron-builder",
+    "build:win": "vite build && electron-builder --win",
+    "build:mac": "vite build && electron-builder --mac",
+    "build:linux": "vite build && electron-builder --linux",
+    "build:all": "vite build && electron-builder -wml",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"
   },
   "build": {
     "appId": "com.tracking-time.app",
     "productName": "Tracking Time",
+    "asar": true,
+    "files": [
+      "dist",
+      "dist-electron"
+    ],
     "publish": {
       "provider": "github",
       "owner": "full-stack-developer-pro",
@@ -48,6 +60,7 @@
     "electron-log": "^5.4.3",
     "electron-updater": "^6.6.2",
     "form-data": "^4.0.5",
+    "googleapis": "^168.0.0",
     "node-fetch": "^3.3.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
@@ -66,6 +79,7 @@
     "@typescript-eslint/eslint-plugin": "^7.1.1",
     "@typescript-eslint/parser": "^7.1.1",
     "@vitejs/plugin-react": "^4.2.1",
+    "concurrently": "^9.2.1",
     "electron": "^30.0.1",
     "electron-builder": "^24.13.3",
     "eslint": "^8.57.0",
@@ -74,7 +88,8 @@
     "typescript": "^5.2.2",
     "vite": "^5.1.6",
     "vite-plugin-electron": "^0.28.6",
-    "vite-plugin-electron-renderer": "^0.14.5"
+    "vite-plugin-electron-renderer": "^0.14.5",
+    "wait-on": "^9.0.3"
   },
   "main": "dist-electron/main.js"
 }

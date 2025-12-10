@@ -1,7 +1,17 @@
-import { app, BrowserWindow, ipcMain, session, shell } from "electron";
-import { fileURLToPath } from "node:url";
+import {
+  app,
+  BrowserWindow,
+  ipcMain,
+  session,
+  shell,
+  protocol,
+  net,
+} from "electron";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import path from "node:path";
 import dotenv from "dotenv";
+import axios from "axios";
+import { google } from "googleapis";
 import {
   startScreenCapture,
   stopScreenCapture,
@@ -10,48 +20,76 @@ import {
   startUserActivityTracking,
   stopUserActivityTracking,
 } from "./backgroundTask/userActivity";
-import { autoUpdater, UpdateInfo } from "electron-updater";
+import { autoUpdater } from "electron-updater";
 import log from "electron-log";
 
 dotenv.config();
 const PROTOCOL_SCHEME = "tracking-time";
+const CUSTOM_PROTOCOL = "tracking-app";
 let win: BrowserWindow | null = null;
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 process.env.APP_ROOT = path.join(__dirname, "..");
 
 const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL;
-const preload = path.join(__dirname, "preload.js");
+const preload = path.join(__dirname, "preload.mjs");
 
 function createWindow() {
+  log.info("Creating window...");
   win = new BrowserWindow({
-    icon: path.join(process.env.VITE_PUBLIC, "electron-vite.svg"),
+    width: 1200,
+    height: 800,
+    show: false, // Don't show until ready
+    icon: path.join(process.env.VITE_PUBLIC as string, "electron-vite.svg"),
     webPreferences: {
       preload,
       nodeIntegration: false,
       contextIsolation: true,
       partition: "persist:tracking-session",
-      webSecurity: true,
+      webSecurity: false, // Temporary fix for local resource loading if CSP fails
     },
   });
 
-  if (VITE_DEV_SERVER_URL) {
-    win.loadURL(VITE_DEV_SERVER_URL);
+  win.once("ready-to-show", () => {
+    log.info("Window is ready to show");
+    win?.show();
+  });
+
+  // Check if we are in development mode
+  const devUrl = VITE_DEV_SERVER_URL || "http://localhost:5173";
+  if (!app.isPackaged) {
+    log.info(`Loading DEV URL: ${devUrl}`);
+    win.loadURL(devUrl).catch((e) => log.error("Failed to load url:", e));
+    if (!win.webContents.isDevToolsOpened()) win.webContents.openDevTools();
   } else {
-    win.loadFile(path.join(RENDERER_DIST, "index.html"));
+    // Production mode
+    const loadUrl = `${CUSTOM_PROTOCOL}://app/index.html`;
+    log.info(`Production: Loading ${loadUrl}`);
+
+    win.loadURL(loadUrl).catch((e) => {
+      log.error("Failed to load custom protocol URL:", e);
+    });
+
+    // FORCE OPEN DEVTOOLS IN PRODUCTION FOR DEBUGGING
+    win.webContents.openDevTools();
   }
 
   win.on("closed", () => {
+    log.info("Window closed");
     win = null;
     stopScreenCapture();
     stopUserActivityTracking();
   });
 
+  // Handle deep link from command line for Windows/Linux after app install/launch
   if (process.platform === "win32" || process.platform === "linux") {
     const deepLinkUrl = process.argv.find((arg) =>
       arg.startsWith(PROTOCOL_SCHEME + "://")
     );
     if (deepLinkUrl) {
+      log.info(`Found deep link at startup: ${deepLinkUrl}`);
       setTimeout(() => handleDeepLink(deepLinkUrl), 3000);
     }
   }
@@ -64,11 +102,11 @@ autoUpdater.on("checking-for-update", () => {
   log.info("Checking for update...");
 });
 
-autoUpdater.on("update-available", (info: UpdateInfo) => {
+autoUpdater.on("update-available", (info: any) => {
   log.info(`Update available! Version: ${info.version}`);
 });
 
-autoUpdater.on("update-not-available", (info: UpdateInfo) => {
+autoUpdater.on("update-not-available", (info: any) => {
   log.info(`Update not available. Current version: ${info.version}`);
 });
 
@@ -83,18 +121,21 @@ autoUpdater.on("download-progress", (progressObj) => {
   log.info(msg);
 });
 
-autoUpdater.on("update-downloaded", (info: UpdateInfo) => {
+autoUpdater.on("update-downloaded", (info: any) => {
   log.info(`Update downloaded. Version: ${info.version}`);
   setTimeout(() => {
     autoUpdater.quitAndInstall();
   }, 1000);
 });
 
-export const MAIN_DIST = path.join(process.env.APP_ROOT, "dist-electron");
-export const RENDERER_DIST = path.join(process.env.APP_ROOT, "dist");
+export const MAIN_DIST = path.join(
+  process.env.APP_ROOT as string,
+  "dist-electron"
+);
+export const RENDERER_DIST = path.join(process.env.APP_ROOT as string, "dist");
 
 process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL
-  ? path.join(process.env.APP_ROOT, "public")
+  ? path.join(process.env.APP_ROOT as string, "public")
   : RENDERER_DIST;
 
 if (process.defaultApp) {
@@ -118,7 +159,21 @@ const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
   app.quit();
 } else {
-  app.on("second-instance", (event, commandLine, workingDirectory) => {
+  // Register schemes as privileged MUST be done before app is ready
+  protocol.registerSchemesAsPrivileged([
+    {
+      scheme: CUSTOM_PROTOCOL,
+      privileges: {
+        standard: true,
+        secure: true,
+        bypassCSP: true,
+        allowServiceWorkers: true,
+        supportFetchAPI: true,
+      },
+    },
+  ]);
+
+  app.on("second-instance", (_event, commandLine, _workingDirectory) => {
     if (win) {
       if (win.isMinimized()) win.restore();
       win.focus();
@@ -132,6 +187,61 @@ if (!gotTheLock) {
   });
 
   app.whenReady().then(() => {
+    // **Crucial: Since we are using win.loadFile() for the main index.html,
+    // we remove the protocol.handle() block to serve files via the custom protocol,
+    // as it was the source of path errors in the production build.**
+
+    if (app.isPackaged) {
+      log.info(
+        "Registering custom protocol handler for PARTITION 'persist:tracking-session'..."
+      );
+      const ses = session.fromPartition("persist:tracking-session");
+
+      ses.protocol.handle(CUSTOM_PROTOCOL, async (request) => {
+        try {
+          // url: tracking-app://app/index.html
+          const url = new URL(request.url);
+          let relativePath = url.pathname;
+
+          if (relativePath === "/" || relativePath === "") {
+            relativePath = "/index.html";
+          }
+
+          // Decode path (handle spaces etc)
+          relativePath = decodeURIComponent(relativePath);
+
+          const absolutePath = path.join(
+            app.getAppPath(),
+            "dist",
+            relativePath
+          );
+
+          log.info(`[Protocol] Request: ${request.url} -> ${absolutePath}`);
+
+          // Read file directly (works with ASAR)
+          // Using fs from node-fs usually works best in Main process
+          const fs = await import("fs/promises");
+          const data = await fs.readFile(absolutePath);
+
+          // Determine mime type (basic)
+          const ext = path.extname(absolutePath);
+          let mimeType = "text/html";
+          if (ext === ".js") mimeType = "text/javascript";
+          else if (ext === ".css") mimeType = "text/css";
+          else if (ext === ".svg") mimeType = "image/svg+xml";
+          else if (ext === ".json") mimeType = "application/json";
+          else if (ext === ".png") mimeType = "image/png";
+
+          return new Response(data, {
+            headers: { "content-type": mimeType },
+          });
+        } catch (error) {
+          log.error("[Protocol] Failed:", error);
+          return new Response("Not Found", { status: 404 });
+        }
+      });
+    }
+
     createWindow();
 
     setTimeout(() => {
@@ -140,7 +250,7 @@ if (!gotTheLock) {
   });
 }
 
-ipcMain.on("login", async (event, userId, trackingSettings) => {
+ipcMain.on("login", async (_event, userId, trackingSettings) => {
   try {
     if (!trackingSettings)
       return console.error("No tracking settings provided");
@@ -173,9 +283,9 @@ ipcMain.on("logout", async () => {
 
 ipcMain.handle("test-api-connection", async () => {
   try {
-    const axios = require("axios");
     const API_URL = process.env.VITE_BACKEND_URL;
 
+    // Axios is now imported at the top
     const response = await axios.get(`${API_URL}/api/auth/test`, {
       timeout: 5000,
     });
@@ -206,7 +316,52 @@ ipcMain.handle("get-cookies", async () => {
   }
 });
 
-ipcMain.on("open-browser-auth", (event, url) => {
+const oauth2Client = new google.auth.OAuth2(
+  process.env.GOOGLE_CLIENT_ID,
+  process.env.GOOGLE_CLIENT_SECRET,
+  "http://localhost:3000/oauth/callback"
+);
+
+ipcMain.handle("google-oauth", async () => {
+  const authUrl = oauth2Client.generateAuthUrl({
+    access_type: "offline",
+    prompt: "select_account",
+    scope: ["profile", "email"],
+  });
+
+  return new Promise((resolve, reject) => {
+    const authWin = new BrowserWindow({
+      width: 500,
+      height: 600,
+      webPreferences: { nodeIntegration: false },
+    });
+
+    authWin.loadURL(authUrl);
+
+    authWin.webContents.on("will-redirect", async (_event, url) => {
+      if (url.startsWith("http://localhost:3000/oauth/callback")) {
+        const urlParams = new URL(url).searchParams;
+        const code = urlParams.get("code");
+
+        try {
+          const { tokens } = await oauth2Client.getToken(code as string);
+          resolve(tokens.id_token);
+          authWin.close();
+        } catch (err) {
+          reject(err);
+          authWin.close();
+        }
+      }
+    });
+
+    authWin.on("closed", () => {
+      // Ensure promise isn't left hanging if user closes window manually
+      reject(new Error("User closed the login window"));
+    });
+  });
+});
+
+ipcMain.on("open-browser-auth", (_event, url) => {
   if (url && (url.startsWith("http://") || url.startsWith("https://"))) {
     shell.openExternal(url);
   }

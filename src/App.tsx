@@ -1,9 +1,9 @@
-import React from "react";
 import router from "./router";
 import { AuthProvider } from "./context/AuthContext";
 import { ToastContainer } from "react-toastify";
 
 const App = () => {
+  console.log("App.tsx: Rendering App component");
   return (
     <AuthProvider>
       <ToastContainer
