@@ -3,7 +3,7 @@
   "private": true,
   "description": "A desktop application for tracking time and activity",
   "author": "Tracking Time Team",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
   "scripts": {
     "dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && npm run electron-dev\"",
@@ -48,7 +48,8 @@
     "linux": {
       "target": "AppImage",
       "icon": "public/icon.png"
-    }
+    },
+    "_publish": "never"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

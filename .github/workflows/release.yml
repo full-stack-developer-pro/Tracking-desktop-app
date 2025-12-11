@@ -1,4 +1,4 @@
-name: Build and Release
+name: Build and Release App Installers
 
 on:
   push:
@@ -23,12 +23,19 @@ jobs:
           node-version: 20
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
-      - name: Build and release
+      - name: Run Vite Build (Renderer)
+        run: npm run build
+
+      - name: Build and Publish Installer for ${{ matrix.os }}
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
-          # This runs your package.json "build" script (tsc && vite build && electron-builder)
-          # The --publish always uploads the built assets to a GitHub Release
-          npm run build -- --publish always
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            npx electron-builder --win --publish always
+          elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            npx electron-builder --mac --publish always
+          else
+            npx electron-builder --linux --publish always
+          fi
