@@ -38,11 +38,22 @@ const preload = path.join(__dirname, "preload.mjs");
 
 function createWindow() {
   log.info("Creating window...");
+  let iconPath: string;
+
+  if (process.platform === "win32") {
+    iconPath = path.join(process.cwd(), "public", "icon.ico");
+  } else if (process.platform === "darwin") {
+    iconPath = path.join(process.cwd(), "public", "icon.icns");
+  } else {
+    iconPath = path.join(process.cwd(), "public", "icon.png");
+  }
+
   win = new BrowserWindow({
     width: 1200,
     height: 800,
     show: false,
-    icon: path.join(process.env.VITE_PUBLIC as string, "electron-vite.svg"),
+    // icon: path.join(process.env.VITE_PUBLIC as string, "electron-vite.svg"),
+    icon: iconPath,
     webPreferences: {
       preload,
       nodeIntegration: false,
