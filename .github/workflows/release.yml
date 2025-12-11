@@ -9,6 +9,9 @@ jobs:
   release:
     runs-on: ${{ matrix.os }}
 
+    env:
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}
+
     strategy:
       matrix:
         os: [macos-latest, ubuntu-latest, windows-latest]
@@ -29,8 +32,6 @@ jobs:
         run: npm run build
 
       - name: Build and Publish Installer for ${{ matrix.os }}
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
             npx electron-builder --win --publish always
