@@ -138,11 +138,13 @@ export default function Login() {
   const onSubmit = async (data: { email: string; password: string }) => {
     try {
       const res = await login(data);
-      const { user, accessToken } = res?.data?.data;
+      const { user, accessToken, refreshToken } = res?.data?.data;
       const { _id: userId, role, companyId } = user;
 
       const companyIdValue =
         typeof companyId === "string" ? companyId : companyId?._id || companyId;
+
+      console.log("Company ID:", companyIdValue);
 
       let trackingSettings = null;
       if (companyIdValue && companyIdValue !== "unknown") {
@@ -159,6 +161,7 @@ export default function Login() {
       localStorage.setItem("userId", userId);
       localStorage.setItem("role", role);
       localStorage.setItem("token", accessToken);
+      if (refreshToken) localStorage.setItem("refreshToken", refreshToken);
       localStorage.setItem(
         "trackingSettings",
         JSON.stringify(trackingSettings)
