@@ -17,4 +17,8 @@ const verifyToken = () => {
   return api.get("/auth/verify");
 };
 
-export { login, logout, verifyToken };
+const refreshAccessToken = (refreshToken: string) => {
+  return api.post("/auth/refresh-token", { refreshToken });
+};
+
+export { login, logout, verifyToken, refreshAccessToken };
