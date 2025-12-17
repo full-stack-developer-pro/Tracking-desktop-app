@@ -6,10 +6,17 @@ import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
-  console.log("Loaded ENV keys:", Object.keys(env));
 
   return {
     base: "./",
+    define: {
+      "import.meta.env.VITE_FRONTEND_URL": JSON.stringify(
+        process.env.VITE_FRONTEND_URL || env.VITE_FRONTEND_URL
+      ),
+      "import.meta.env.VITE_BACKEND_URL": JSON.stringify(
+        process.env.VITE_BACKEND_URL || env.VITE_BACKEND_URL
+      ),
+    },
     plugins: [
       react(),
       tailwindcss(),
@@ -24,16 +31,16 @@ export default defineConfig(({ mode }) => {
             },
             define: {
               "process.env.VITE_FRONTEND_URL": JSON.stringify(
-                env.VITE_FRONTEND_URL
+                process.env.VITE_FRONTEND_URL || env.VITE_FRONTEND_URL
               ),
               "process.env.VITE_BACKEND_URL": JSON.stringify(
-                env.VITE_BACKEND_URL
+                process.env.VITE_BACKEND_URL || env.VITE_BACKEND_URL
               ),
               "process.env.GOOGLE_CLIENT_ID": JSON.stringify(
-                env.GOOGLE_CLIENT_ID
+                process.env.GOOGLE_CLIENT_ID || env.GOOGLE_CLIENT_ID
               ),
               "process.env.GOOGLE_CLIENT_SECRET": JSON.stringify(
-                env.GOOGLE_CLIENT_SECRET
+                process.env.GOOGLE_CLIENT_SECRET || env.GOOGLE_CLIENT_SECRET
               ),
             },
           },
