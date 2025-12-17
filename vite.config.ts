@@ -18,6 +18,20 @@ export default defineConfig({
               external: ["googleapis", "google-auth-library"],
             },
           },
+          define: {
+            "process.env.VITE_FRONTEND_URL": JSON.stringify(
+              process.env.VITE_FRONTEND_URL
+            ),
+            "process.env.VITE_BACKEND_URL": JSON.stringify(
+              process.env.VITE_BACKEND_URL
+            ),
+            "process.env.GOOGLE_CLIENT_ID": JSON.stringify(
+              process.env.GOOGLE_CLIENT_ID
+            ),
+            "process.env.GOOGLE_CLIENT_SECRET": JSON.stringify(
+              process.env.GOOGLE_CLIENT_SECRET
+            ),
+          },
         },
       },
       preload: {
