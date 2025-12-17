@@ -6,6 +6,7 @@ import {
   shell,
   protocol,
   net,
+  dialog,
 } from "electron";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import path from "node:path";
@@ -356,6 +357,12 @@ ipcMain.handle("google-oauth", async () => {
 ipcMain.on("open-browser-auth", (_event, url) => {
   if (url && (url.startsWith("http://") || url.startsWith("https://"))) {
     shell.openExternal(url);
+  } else {
+    dialog.showErrorBox(
+      "Invalid Launch URL",
+      `The application tried to open an invalid URL: "${url}"\n\nPossible cause: VITE_FRONTEND_URL environment variable is missing.`
+    );
+    log.error(`Failed to open external URL: ${url}`);
   }
 });
 
