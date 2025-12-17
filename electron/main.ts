@@ -278,7 +278,8 @@ ipcMain.on("logout", async () => {
 
 ipcMain.handle("test-api-connection", async () => {
   try {
-    const API_URL = process.env.VITE_BACKEND_URL;
+    const API_URL =
+      process.env.VITE_BACKEND_URL || "https://trackingtime-niy8.onrender.com";
 
     const response = await axios.get(`${API_URL}/api/auth/test`, {
       timeout: 5000,

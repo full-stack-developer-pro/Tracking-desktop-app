@@ -1,6 +1,8 @@
 import axios from "axios";
 
-const API_URL: string = `${import.meta.env.VITE_BACKEND_URL}/api`;
+const API_URL: string = `${
+  import.meta.env.VITE_BACKEND_URL || "https://trackingtime-niy8.onrender.com"
+}/api`;
 
 const api = axios.create({
   baseURL: API_URL,
