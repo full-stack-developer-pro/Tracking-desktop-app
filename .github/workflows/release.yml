@@ -12,6 +12,8 @@ jobs:
 
     env:
       GH_TOKEN: ${{ secrets.GH_TOKEN }}
+      ELECTRON_INSTALL_RETRY_ATTEMPTS: 5
+      ELECTRON_INSTALL_RETRY_DELAY: 3000
 
     strategy:
       matrix:
@@ -34,9 +36,6 @@ jobs:
           npm config set fetch-retry-mintimeout 20000
           npm config set fetch-retry-maxtimeout 120000
           npm install
-        env:
-          ELECTRON_INSTALL_RETRY_ATTEMPTS: 5
-          ELECTRON_INSTALL_RETRY_DELAY: 3000
 
       - name: Run Vite Build (Renderer)
         run: npm run build
