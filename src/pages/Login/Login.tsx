@@ -26,7 +26,9 @@ import { toast } from "react-toastify";
 import { login } from "../../services/AuthServices";
 import { getTrackingSettings } from "../../services/DataServices";
 
-const WEBSITE_LOGIN_URL = `${import.meta.env.VITE_FRONTEND_URL}/authorize-app`;
+const WEBSITE_LOGIN_URL = `${
+  import.meta.env.VITE_FRONTEND_URL || "https://tracking-panel-pi.vercel.app"
+}/authorize-app`;
 
 export default function Login() {
   const navigate = useNavigate();
