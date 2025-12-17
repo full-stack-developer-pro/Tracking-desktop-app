@@ -3,12 +3,18 @@ import uploadScreenshot from "../utils/uploadScreenshot";
 
 let captureInterval: NodeJS.Timeout | null = null;
 let loggedInUserId: string = "";
+let authToken: string = "";
 let currentSettings: any = null;
 
-const startScreenCapture = async (userId: string, trackingSettings: any) => {
+const startScreenCapture = async (
+  userId: string,
+  trackingSettings: any,
+  token: string
+) => {
   console.log("Starting screen capture with settings:", trackingSettings);
 
   loggedInUserId = userId;
+  authToken = token;
   currentSettings = trackingSettings;
 
   if (!currentSettings?.randomScreenshot?.enabled)
@@ -32,6 +38,7 @@ const stopScreenCapture = () => {
   }
   currentSettings = null;
   loggedInUserId = "";
+  authToken = "";
   console.log("Screen capture stopped");
 };
 
@@ -46,7 +53,13 @@ const scheduleNextCapture = async (intervalMinutes: number, userId: string) => {
         const screenshotPath = await captureScreen(userId);
 
         if (screenshotPath)
-          await uploadScreenshot(screenshotPath, userId, "active");
+          await uploadScreenshot(
+            screenshotPath,
+            userId,
+            "active",
+            0,
+            authToken
+          );
       }
 
       if (currentSettings && loggedInUserId)
@@ -59,6 +72,11 @@ const scheduleNextCapture = async (intervalMinutes: number, userId: string) => {
       }
     }
   }, intervalMs);
+};
+
+export const setAuthToken = (token: string) => {
+  authToken = token;
+  console.log("Auth token updated for screen capture");
 };
 
 export { startScreenCapture, stopScreenCapture, currentSettings };

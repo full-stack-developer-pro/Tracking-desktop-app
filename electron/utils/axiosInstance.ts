@@ -62,6 +62,11 @@ api.interceptors.response.use(
             localStorage.setItem("refreshToken", newRefreshToken);
           }
 
+          // Sync new token with Electron Main Process
+          if (window.electronAPI?.updateToken) {
+            window.electronAPI.updateToken(accessToken);
+          }
+
           api.defaults.headers.common[
             "Authorization"
           ] = `Bearer ${accessToken}`;
@@ -73,9 +78,7 @@ api.interceptors.response.use(
         console.error("Token refresh failed:", refreshError);
         // Logout user if refresh fails
         localStorage.clear();
-        // Redirect to login handled by router/component usually,
-        // or dispatch an event that the app listens to.
-        // For now, let's just let the error propagate.
+        window.dispatchEvent(new Event("auth:logout"));
       }
     }
 

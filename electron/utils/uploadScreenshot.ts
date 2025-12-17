@@ -1,12 +1,13 @@
 import fs from "fs";
 import FormData from "form-data";
-import { uploadImage } from "../../src/services/DataServices";
+import axios from "axios";
 
 async function uploadScreenshot(
   filePath: string,
   loggedInUserId: string,
   activity?: string,
-  inActiveDuration?: number
+  inActiveDuration?: number,
+  token?: string
 ) {
   try {
     if (!fs.existsSync(filePath))
@@ -20,7 +21,16 @@ async function uploadScreenshot(
     if (inActiveDuration)
       formData.append("inActiveDuration", inActiveDuration.toString());
 
-    const res = await uploadImage(formData);
+    // Hardcoded fallback or use env var (process.env works in Node)
+    const API_URL =
+      process.env.VITE_BACKEND_URL || "https://trackingtime-niy8.onrender.com";
+
+    const res = await axios.post(`${API_URL}/api/upload/image`, formData, {
+      headers: {
+        ...formData.getHeaders(),
+        Authorization: token ? `Bearer ${token}` : undefined,
+      },
+    });
 
     if (res.status === 200 || res.status === 201) {
       console.log("Screenshot uploaded successfully");
@@ -37,7 +47,11 @@ async function uploadScreenshot(
 
     return res;
   } catch (err: any) {
-    console.error("Screenshot upload failed:", err.message);
+    console.error(
+      "Screenshot upload failed:",
+      err.message,
+      err.response?.data || ""
+    );
 
     try {
       if (fs.existsSync(filePath)) {

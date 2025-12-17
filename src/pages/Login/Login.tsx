@@ -72,7 +72,7 @@ export default function Login() {
           }
 
           if (window.electronAPI) {
-            window.electronAPI.login(userId, trackingSettings);
+            window.electronAPI.login(userId, trackingSettings, token);
             if (!trackingSettings?.isActive) {
               toast.info("Tracking is disabled for your company.");
             } else {
@@ -175,7 +175,7 @@ export default function Login() {
 
       if (window.electronAPI) {
         try {
-          window.electronAPI.login(userId, trackingSettings);
+          window.electronAPI.login(userId, trackingSettings, accessToken);
           toast.success("Desktop tracking started!");
         } catch (electronError: any) {
           toast.warning("Login successful, but desktop tracking failed");

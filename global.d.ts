@@ -3,13 +3,14 @@ export {};
 interface IElectronAPI {
   logout: () => void;
   openBrowserAuth: (url: string) => void;
-  login: (userId: string, trackingSettings: any) => void;
+  login: (userId: string, trackingSettings: any, token: string) => void;
   onDeepLinkLogin: (callback: (data: any) => void) => void;
   testConnection: () => Promise<any>;
   removeDeepLinkListener: () => void;
   getCookies: () => Promise<any>;
   getEnv: (key: string) => Promise<string | null>;
   captureScreen: () => Promise<any>;
+  updateToken: (token: string) => void;
 }
 
 interface IIpcRenderer {

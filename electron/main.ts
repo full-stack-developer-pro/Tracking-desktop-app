@@ -16,6 +16,7 @@ import { google } from "googleapis";
 import {
   startScreenCapture,
   stopScreenCapture,
+  setAuthToken,
 } from "./backgroundTask/screenCapture";
 import {
   startUserActivityTracking,
@@ -192,6 +193,12 @@ if (!gotTheLock) {
 
   app.whenReady().then(() => {
     if (app.isPackaged) {
+      log.info("Configuring app to launch at login...");
+      app.setLoginItemSettings({
+        openAtLogin: true,
+        path: app.getPath("exe"),
+      });
+
       log.info(
         "Registering custom protocol handler for PARTITION 'persist:tracking-session'..."
       );
@@ -245,7 +252,7 @@ if (!gotTheLock) {
   });
 }
 
-ipcMain.on("login", async (_event, userId, trackingSettings) => {
+ipcMain.on("login", async (_event, userId, trackingSettings, token) => {
   try {
     if (!trackingSettings)
       return console.error("No tracking settings provided");
@@ -253,7 +260,7 @@ ipcMain.on("login", async (_event, userId, trackingSettings) => {
     if (!trackingSettings.isActive)
       return console.log("Tracking is inactive for this user/company");
 
-    startScreenCapture(userId, trackingSettings);
+    startScreenCapture(userId, trackingSettings, token);
     startUserActivityTracking(userId, trackingSettings);
 
     console.log("Tracking services started successfully");
@@ -274,6 +281,10 @@ ipcMain.on("logout", async () => {
 
   stopScreenCapture();
   stopUserActivityTracking();
+});
+
+ipcMain.on("update-token", (_event, token) => {
+  setAuthToken(token);
 });
 
 ipcMain.handle("test-api-connection", async () => {
