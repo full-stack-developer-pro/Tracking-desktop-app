@@ -11,7 +11,7 @@ jobs:
     timeout-minutes: 60
 
     env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}
       ELECTRON_INSTALL_RETRY_ATTEMPTS: 5
       ELECTRON_INSTALL_RETRY_DELAY: 3000
 
