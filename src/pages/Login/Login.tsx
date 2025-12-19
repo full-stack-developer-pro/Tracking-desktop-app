@@ -34,6 +34,13 @@ export default function Login() {
   const [isTestingConnection, setIsTestingConnection] = useState(false);
 
   useEffect(() => {
+    // Redirect if already logged in
+    const token = localStorage.getItem("token");
+    if (token) {
+      navigate("/dashboard");
+      return;
+    }
+
     const checkElectronAPI = async () => {
       if (window.electronAPI) {
         setIsElectronAvailable(true);
@@ -70,7 +77,8 @@ export default function Login() {
           }
 
           if (window.electronAPI) {
-            window.electronAPI.login(userId, trackingSettings);
+            // Note: Deep link currently only provides access token. Refresh might be missing unless updated later.
+            window.electronAPI.login(userId, trackingSettings, token); // TODO: Deep link needs refreshToken support
             if (!trackingSettings?.isActive) {
               toast.info("Tracking is disabled for your company.");
             } else {
@@ -138,8 +146,18 @@ export default function Login() {
   const onSubmit = async (data: { email: string; password: string }) => {
     try {
       const res = await login(data);
-      const { user, accessToken, refreshToken } = res?.data?.data;
-      const { _id: userId, role, companyId } = user;
+      console.log("Login API Response Data (Full):", res?.data);
+
+      // Robust extraction: Handle { data: { ... } } AND { ... } structures
+      const responsePayload = res?.data?.data || res?.data;
+
+      const { user, accessToken, refreshToken } = responsePayload || {};
+
+      if (!accessToken) {
+        throw new Error("Login failed: No access token received from server.");
+      }
+
+      const { _id: userId, role, companyId } = user || {};
 
       const companyIdValue =
         typeof companyId === "string" ? companyId : companyId?._id || companyId;
@@ -173,7 +191,12 @@ export default function Login() {
 
       if (window.electronAPI) {
         try {
-          window.electronAPI.login(userId, trackingSettings);
+          window.electronAPI.login(
+            userId,
+            trackingSettings,
+            accessToken,
+            refreshToken
+          );
           toast.success("Desktop tracking started!");
         } catch (electronError: any) {
           toast.warning("Login successful, but desktop tracking failed");

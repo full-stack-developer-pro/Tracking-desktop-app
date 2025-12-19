@@ -81,11 +81,19 @@ function createWindow() {
     });
   }
 
-  win.on("closed", () => {
-    log.info("Window closed");
-    win = null;
-    stopScreenCapture();
-    stopUserActivityTracking();
+  win.on("close", (e) => {
+    if (!app.isQuiting) {
+      e.preventDefault();
+      log.info("Close prevented. Asking user for checkout...");
+      win?.webContents.send("show-close-confirmation", {
+        date: new Date().toLocaleDateString(),
+      });
+    } else {
+      log.info("App is quitting, cleaning up...");
+      stopScreenCapture();
+      stopUserActivityTracking();
+      win = null;
+    }
   });
 
   if (process.platform === "win32" || process.platform === "linux") {
@@ -244,21 +252,97 @@ if (!gotTheLock) {
   });
 }
 
-ipcMain.on("login", async (_event, userId, trackingSettings) => {
+// --- Tracking & API Logic ---
+import apiMain, { setAuthToken, setRefreshToken } from "./utils/apiMain";
+
+let currentUserToken: string | null = null;
+let currentUserId: string | null = null;
+(app as any).isQuiting = false;
+
+// Helper: Check In
+async function handleCheckIn(userId: string) {
   try {
-    if (!trackingSettings)
-      return console.error("No tracking settings provided");
-
-    if (!trackingSettings.isActive)
-      return console.log("Tracking is inactive for this user/company");
-
-    startScreenCapture(userId, trackingSettings);
-    startUserActivityTracking(userId, trackingSettings);
-
-    console.log("Tracking services started successfully");
-  } catch (error) {
-    console.error("Login initialization failed:", error);
+    console.log("Attempting Check-in for user:", userId);
+    const res = await apiMain.post("/attendances/check-in");
+    console.log("Check-in Full Response:", JSON.stringify(res.data, null, 2));
+  } catch (error: any) {
+    console.error("Check-in Failed:", error.message);
+    if (error.response) {
+      console.error(
+        "Error Response:",
+        JSON.stringify(error.response.data, null, 2)
+      );
+    }
   }
+}
+
+// Helper: Check Out
+async function handleCheckOut() {
+  try {
+    console.log("Attempting Check-out for user:", currentUserId);
+    const res = await apiMain.post("/attendances/check-out");
+    console.log("Checkout Full Response:", JSON.stringify(res.data, null, 2));
+    return true;
+  } catch (error: any) {
+    console.error("Checkout Failed:", error.message);
+    if (error.response) {
+      console.error(
+        "Error Response:",
+        JSON.stringify(error.response.data, null, 2)
+      );
+    }
+    return false;
+  }
+}
+
+ipcMain.on(
+  "login",
+  async (_event, userId, trackingSettings, token, refreshToken) => {
+    try {
+      if (!trackingSettings)
+        return console.error("No tracking settings provided");
+
+      // Update Global State
+      currentUserId = userId;
+      currentUserToken = token;
+
+      console.log(
+        `[Main] Login received. User: ${userId}, Token: ${!!token}, RefreshToken: ${!!refreshToken}`
+      );
+
+      setAuthToken(token);
+      if (refreshToken) setRefreshToken(refreshToken);
+      else console.warn("[Main] WARNING: No refresh token received!");
+
+      if (!trackingSettings.isActive)
+        return console.log("Tracking is inactive for this user/company");
+
+      startScreenCapture(userId, trackingSettings);
+      startUserActivityTracking(userId, trackingSettings);
+
+      await handleCheckIn(userId);
+
+      console.log("Tracking services started successfully");
+    } catch (error) {
+      console.error("Login initialization failed:", error);
+    }
+  }
+);
+
+ipcMain.handle("confirm-checkout", async () => {
+  const success = await handleCheckOut();
+  if (success) {
+    (app as any).isQuiting = true;
+    app.quit();
+    return { success: true };
+  } else {
+    return { success: false, message: "Checkout API failed. Check internet?" };
+  }
+});
+
+ipcMain.on("cancel-close", () => {
+  // Just do nothing, checking "close" was already prevented.
+  console.log("User cancelled checkout/close");
 });
 
 ipcMain.on("logout", async () => {
@@ -273,6 +357,9 @@ ipcMain.on("logout", async () => {
 
   stopScreenCapture();
   stopUserActivityTracking();
+  currentUserToken = null;
+  currentUserId = null;
+  setAuthToken("");
 });
 
 ipcMain.handle("test-api-connection", async () => {
