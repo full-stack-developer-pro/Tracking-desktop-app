@@ -20,5 +20,12 @@ interface Window {
     cancelClose: () => void;
     onShowCloseConfirmation: (callback: (data: any) => void) => void;
     removeCloseConfirmationListener: () => void;
+    checkForUpdates: () => Promise<any>;
+    startDownload: () => Promise<any>;
+    quitAndInstall: () => void;
+    onUpdateProgress: (callback: (data: any) => void) => void;
+    removeUpdateProgressListener: () => void;
+    onUpdateDownloaded: (callback: (data: any) => void) => void;
+    removeUpdateDownloadedListener: () => void;
   };
 }

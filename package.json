@@ -3,7 +3,7 @@
   "private": true,
   "description": "A desktop application for tracking time and activity",
   "author": "Tracking Time Team",
-  "version": "1.0.8",
+  "version": "1.3.4",
   "type": "module",
   "scripts": {
     "dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && npm run electron-dev\"",
@@ -83,7 +83,7 @@
     "@typescript-eslint/parser": "^7.1.1",
     "@vitejs/plugin-react": "^4.2.1",
     "concurrently": "^9.2.1",
-    "electron": "^30.0.1",
+    "electron": "^39.2.7",
     "electron-builder": "^24.13.3",
     "eslint": "^8.57.0",
     "eslint-plugin-react-hooks": "^4.6.0",

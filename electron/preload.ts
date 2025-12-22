@@ -22,6 +22,17 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("show-close-confirmation", (_event, data) => callback(data)),
   removeCloseConfirmationListener: () =>
     ipcRenderer.removeAllListeners("show-close-confirmation"),
+  checkForUpdates: () => ipcRenderer.invoke("check-for-updates"),
+  startDownload: () => ipcRenderer.invoke("start-download-update"),
+  quitAndInstall: () => ipcRenderer.invoke("quit-and-install-update"),
+  onUpdateProgress: (callback: (data: any) => void) =>
+    ipcRenderer.on("download-progress", (_event, data) => callback(data)),
+  removeUpdateProgressListener: () =>
+    ipcRenderer.removeAllListeners("download-progress"),
+  onUpdateDownloaded: (callback: (data: any) => void) =>
+    ipcRenderer.on("update-downloaded", (_event, data) => callback(data)),
+  removeUpdateDownloadedListener: () =>
+    ipcRenderer.removeAllListeners("update-downloaded"),
 });
 
 contextBridge.exposeInMainWorld("ipcRenderer", {
