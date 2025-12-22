@@ -1,26 +1,23 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { toast } from "react-toastify";
-import { logout } from "../../services/AuthServices";
-import { getTrackingSettings } from "../../services/DataServices";
 import { CssVarsProvider, extendTheme, useColorScheme } from "@mui/joy/styles";
 import GlobalStyles from "@mui/joy/GlobalStyles";
 import CssBaseline from "@mui/joy/CssBaseline";
 import Box from "@mui/joy/Box";
 import Button from "@mui/joy/Button";
 import Typography from "@mui/joy/Typography";
-import Card from "@mui/joy/Card";
-import Divider from "@mui/joy/Divider";
 import IconButton, { IconButtonProps } from "@mui/joy/IconButton";
+import Sheet from "@mui/joy/Sheet";
 import DarkModeRoundedIcon from "@mui/icons-material/DarkModeRounded";
 import LightModeRoundedIcon from "@mui/icons-material/LightModeRounded";
-import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
 import OpenInNewRoundedIcon from "@mui/icons-material/OpenInNewRounded";
 import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
+import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
+import { useNavigate } from "react-router-dom";
+import { toast } from "react-toastify";
+import { logout } from "../../services/AuthServices";
+import { getTrackingSettings } from "../../services/DataServices";
 
-const WEBSITE_LOGIN_URL = `${
-  import.meta.env.VITE_FRONTEND_URL || "https://tracking-panel-pi.vercel.app"
-}/authorize-app`;
+const WEBSITE_LOGIN_URL = `${import.meta.env.VITE_FRONTEND_URL}/authorize-app`;
 
 function ColorSchemeToggle(props: IconButtonProps) {
   const { onClick, ...other } = props;
@@ -33,7 +30,7 @@ function ColorSchemeToggle(props: IconButtonProps) {
     <IconButton
       aria-label="toggle light/dark mode"
       size="sm"
-      variant="outlined"
+      variant="soft"
       disabled={!mounted}
       onClick={(event) => {
         setMode(mode === "light" ? "dark" : "light");
@@ -53,87 +50,125 @@ const customTheme = extendTheme({
   },
 });
 
-function Dashboard() {
+export default function Dashboard() {
   const navigate = useNavigate();
-  const userString = localStorage.getItem("user");
-  const user = JSON.parse(userString || "{}");
+  const [user, setUser] = useState<any>(null);
+  const [isTracking, setIsTracking] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  // Handle Session Expiration
   useEffect(() => {
-    const handleAuthLogout = () => {
-      toast.warning("Session expired. Please login again.");
-      navigate("/login");
-    };
+    const userString = localStorage.getItem("user");
+    if (userString) {
+      setUser(JSON.parse(userString));
+    }
 
-    window.addEventListener("auth:logout", handleAuthLogout);
-    return () => window.removeEventListener("auth:logout", handleAuthLogout);
-  }, [navigate]);
+    const checkTracking = async () => {
+      const companyId = localStorage.getItem("companyId");
+      if (companyId) {
+        try {
+          const res = await getTrackingSettings(companyId);
+          const settings = res.data?.data || res.data;
+          setIsTracking(settings?.isActive || false);
+        } catch (err) {
+          console.error("Failed to check tracking settings", err);
+        }
+      }
+    };
+    checkTracking();
+  }, []);
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
     try {
-      window.electronAPI?.logout();
+      if (window.electronAPI) {
+        window.electronAPI.logout();
+      }
 
-      localStorage.removeItem("userId");
-      localStorage.removeItem("token");
-      localStorage.removeItem("role");
-      localStorage.removeItem("user");
-      localStorage.removeItem("companyId");
-      localStorage.removeItem("trackingSettings");
+      localStorage.clear();
 
-      const res = await logout(); // Call API to invalidate token (optional)
+      try {
+        await logout();
+      } catch (e) {
+        console.warn("Backend logout failed", e);
+      }
 
       toast.success("Logged out successfully");
-      navigate("/login");
+      navigate("/");
     } catch (error: any) {
-      // Force logout even if API fails
-      toast.info("Logged out locally");
-      localStorage.clear();
-      navigate("/login");
-    } finally {
-      setIsLoggingOut(false);
+      console.log(error);
+      toast.error(
+        error?.response?.data?.message || "Facing some error in log out"
+      );
     }
   };
 
   const handleBrowserLogin = () => {
     if (window.electronAPI?.openBrowserAuth) {
       window.electronAPI.openBrowserAuth(WEBSITE_LOGIN_URL);
-      toast.info("Opening browser for authentication...");
     } else {
-      toast.error("Browser login not supported in this version.");
+      toast.error("Browser open not supported");
     }
   };
 
   return (
-    <CssVarsProvider theme={customTheme} defaultMode="dark">
+    <CssVarsProvider
+      theme={customTheme}
+      defaultMode="dark"
+      disableTransitionOnChange
+    >
       <CssBaseline />
       <GlobalStyles
         styles={{
           ":root": {
+            "--Form-maxWidth": "800px",
             "--Transition-duration": "0.4s",
           },
         }}
       />
+
       <Box
-        sx={{
-          height: "100vh",
+        sx={(theme) => ({
+          minHeight: "100vh",
           display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
           justifyContent: "center",
-          background: "background.body",
-          p: 2,
-        }}
+          alignItems: "center",
+          backgroundColor: "background.level1",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundImage:
+            "url(https://images.unsplash.com/photo-1527181152855-fc03fc7949c8?auto=format&w=1000&dpr=2)",
+          [theme.getColorSchemeSelector("dark")]: {
+            backgroundImage:
+              "url(https://images.unsplash.com/photo-1572072393749-3ca9c8ea0831?auto=format&w=1000&dpr=2)",
+          },
+        })}
       >
-        <Card
-          variant="outlined"
-          sx={{
-            width: "100%",
-            maxWidth: 500,
+        <Sheet
+          sx={(theme) => ({
+            width: 400,
+            mx: "auto",
+            my: 4,
+            py: 3,
+            px: 2,
+            display: "flex",
+            flexDirection: "column",
             gap: 2,
-            boxShadow: "lg",
-          }}
+            borderRadius: "sm",
+            boxShadow: "md",
+            backdropFilter: "blur(10px)",
+            transition: "background-color 0.3s, border-color 0.3s",
+
+            // LIGHT MODE STYLES
+            backgroundColor: "rgba(255, 255, 255, 0.8)",
+            border: "1px solid rgba(255, 255, 255, 0.3)",
+
+            // DARK MODE STYLES
+            [theme.getColorSchemeSelector("dark")]: {
+              backgroundColor: "rgba(19, 19, 24, 0.7)",
+              border: "1px solid rgba(255, 255, 255, 0.1)",
+            },
+          })}
+          variant="outlined"
         >
           <Box
             sx={{
@@ -147,80 +182,76 @@ function Dashboard() {
             </Typography>
             <ColorSchemeToggle />
           </Box>
-          <Divider />
 
-          <Box sx={{ display: "flex", alignItems: "center", gap: 2, py: 2 }}>
-            <Box
-              sx={{
-                width: 12,
-                height: 12,
-                borderRadius: "50%",
-                bgcolor: "success.500",
-                boxShadow: "0 0 0 4px rgba(25, 135, 84, 0.2)",
-                animation: "pulse 2s infinite",
-                "@keyframes pulse": {
-                  "0%": {
-                    boxShadow: "0 0 0 0px rgba(25, 135, 84, 0.2)",
-                  },
-                  "100%": {
-                    boxShadow: "0 0 0 10px rgba(25, 135, 84, 0)",
-                  },
-                },
-              }}
-            />
-            <Box>
-              <Typography level="title-md" color="success">
-                Monitoring Active
-              </Typography>
-              {/* <Typography level="body-sm">
-                Screenshots & Activity Tracking
-              </Typography> */}
-            </Box>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              gap: 1,
+              color: isTracking ? "success.500" : "danger.500",
+            }}
+          >
+            <CheckCircleRoundedIcon />
+            <Typography
+              level="title-sm"
+              color={isTracking ? "success" : "danger"}
+            >
+              {isTracking ? "Monitoring Active" : "Monitoring Inactive"}
+            </Typography>
           </Box>
 
-          <Card variant="soft" color="primary">
-            <Box sx={{ display: "flex", gap: 1.5, alignItems: "center" }}>
-              <CheckCircleRoundedIcon />
-              <Box>
-                <Typography level="title-sm">
-                  Logged in as {user.name || "User"}
-                </Typography>
-                {/* <Typography level="body-xs">
-                  {user.email || "No email"}
-                </Typography> */}
-              </Box>
+          <Sheet
+            variant="soft"
+            color="primary"
+            sx={{
+              p: 2,
+              borderRadius: "sm",
+              display: "flex",
+              alignItems: "center",
+              gap: 2,
+            }}
+          >
+            <CheckCircleRoundedIcon />{" "}
+            <Box>
+              <Typography level="title-sm">
+                Logged in as {user?.firstName || "User"}
+              </Typography>
+              <Typography level="body-xs">{user?.email}</Typography>
             </Box>
-          </Card>
+          </Sheet>
 
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 2, mt: 2 }}>
-            {/* <Button
-              variant="solid"
+          <Button
+            variant="outlined"
+            color="neutral"
+            fullWidth
+            startDecorator={<OpenInNewRoundedIcon />}
+            onClick={handleBrowserLogin}
+          >
+            Login via Website
+          </Button>
+
+          <Typography
+            level="body-xs"
+            sx={{ textAlign: "center", opacity: 0.6 }}
+          >
+            Use this if your session expired or you need to switch accounts.
+          </Typography>
+
+          <Box sx={{ mt: 2, display: "flex", justifyContent: "center" }}>
+            <Button
+              variant="plain"
               color="danger"
               startDecorator={<LogoutRoundedIcon />}
               onClick={handleLogout}
+              size="sm"
               loading={isLoggingOut}
+              disabled={isLoggingOut}
             >
               Logout
             </Button>
-
-            <Divider>OR</Divider> */}
-
-            <Button
-              variant="outlined"
-              color="neutral"
-              startDecorator={<OpenInNewRoundedIcon />}
-              onClick={handleBrowserLogin}
-            >
-              Login via Website
-            </Button>
-            <Typography level="body-xs" sx={{ textAlign: "center", mt: -1 }}>
-              Use this if your session expired or you need to switch accounts.
-            </Typography>
           </Box>
-        </Card>
+        </Sheet>
       </Box>
     </CssVarsProvider>
   );
 }
-
-export default Dashboard;

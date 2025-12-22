@@ -5,18 +5,16 @@ import {
   session,
   shell,
   protocol,
-  net,
   dialog,
 } from "electron";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import path from "node:path";
 import dotenv from "dotenv";
 import axios from "axios";
-import { google } from "googleapis";
 import {
   startScreenCapture,
   stopScreenCapture,
-  setAuthToken,
+  setAuthToken as setScreenCaptureToken,
 } from "./backgroundTask/screenCapture";
 import {
   startUserActivityTracking,
@@ -24,11 +22,18 @@ import {
 } from "./backgroundTask/userActivity";
 import { autoUpdater } from "electron-updater";
 import log from "electron-log";
+import apiMain, {
+  setAuthToken as setApiToken,
+  setRefreshToken,
+} from "./utils/apiMain";
 
 dotenv.config();
+
 const PROTOCOL_SCHEME = "tracking-time";
 const CUSTOM_PROTOCOL = "tracking-app";
 let win: BrowserWindow | null = null;
+let isQuitting = false;
+let currentUserId: string | null = null;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -51,10 +56,9 @@ function createWindow() {
   }
 
   win = new BrowserWindow({
-    width: 1200,
-    height: 800,
+    width: 500,
+    height: 700,
     show: false,
-    // icon: path.join(process.env.VITE_PUBLIC as string, "electron-vite.svg"),
     icon: iconPath,
     webPreferences: {
       preload,
@@ -83,11 +87,31 @@ function createWindow() {
     });
   }
 
-  win.on("closed", () => {
-    log.info("Window closed");
-    win = null;
-    stopScreenCapture();
-    stopUserActivityTracking();
+  app.on("before-quit", () => {
+    isQuitting = true;
+  });
+
+  win.on("close", (e) => {
+    if (!isQuitting) {
+      log.info(`[main] Close detected. currentUserId: ${currentUserId}`);
+      if (currentUserId) {
+        e.preventDefault();
+        log.info("Close prevented. Asking user for checkout...");
+        win?.webContents.send("show-close-confirmation", {
+          date: new Date().toLocaleDateString(),
+        });
+        return;
+      } else {
+        log.info("No user logged in. Closing app without checkout/prevention.");
+        isQuitting = true;
+      }
+    }
+
+    if (isQuitting) {
+      log.info("App is quitting, cleaning up...");
+      stopScreenCapture();
+      stopUserActivityTracking();
+    }
   });
 
   if (process.platform === "win32" || process.platform === "linux") {
@@ -125,10 +149,12 @@ autoUpdater.on("download-progress", (progressObj) => {
   msg += ` - Downloaded ${progressObj.percent.toFixed(2)}%`;
   msg += ` (${progressObj.transferred}/${progressObj.total})`;
   log.info(msg);
+  win?.webContents.send("download-progress", progressObj);
 });
 
 autoUpdater.on("update-downloaded", (info: any) => {
   log.info(`Update downloaded. Version: ${info.version}`);
+  win?.webContents.send("update-downloaded", info);
   setTimeout(() => {
     autoUpdater.quitAndInstall();
   }, 1000);
@@ -246,30 +272,131 @@ if (!gotTheLock) {
 
     createWindow();
 
-    setTimeout(() => {
-      autoUpdater.checkForUpdatesAndNotify();
-    }, 500);
+    ipcMain.handle("check-for-updates", async () => {
+      if (!app.isPackaged) {
+        log.info("Skipping update check in dev mode");
+        return { updateAvailable: false, message: "Dev mode" };
+      }
+      try {
+        (autoUpdater as any).autoDownload = false;
+        const result = await (autoUpdater as any).checkForUpdates();
+        return {
+          updateAvailable: !!(result && result.updateInfo),
+          version: result?.updateInfo.version,
+        };
+      } catch (error: any) {
+        log.error("Failed to check for updates:", error);
+        return { error: error.message };
+      }
+    });
+
+    ipcMain.handle("start-download-update", async () => {
+      try {
+        await (autoUpdater as any).downloadUpdate();
+        return { success: true };
+      } catch (error: any) {
+        log.error("Failed to start download:", error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle("quit-and-install-update", () => {
+      autoUpdater.quitAndInstall();
+    });
   });
 }
 
-ipcMain.on("login", async (_event, userId, trackingSettings, token) => {
+async function handleCheckIn(userId: string) {
   try {
-    if (!trackingSettings)
-      return console.error("No tracking settings provided");
+    console.log("Attempting Check-in for user:", userId);
+    const res = await apiMain.post("/attendances/check-in");
+    console.log("Check-in Full Response:", JSON.stringify(res.data, null, 2));
+  } catch (error: any) {
+    console.error("Check-in Failed:", error.message);
+    if (error.response) {
+      console.error(
+        "Error Response:",
+        JSON.stringify(error.response.data, null, 2)
+      );
+    }
+  }
+}
 
-    if (!trackingSettings.isActive)
-      return console.log("Tracking is inactive for this user/company");
+async function handleCheckOut() {
+  if (!currentUserId) {
+    console.log("No user logged in, skipping checkout.");
+    return true; // Allow close if no user
+  }
+  try {
+    console.log("Attempting Check-out for user:", currentUserId);
+    const res = await apiMain.post("/attendances/check-out");
+    console.log("Checkout Full Response:", JSON.stringify(res.data, null, 2));
+    return true;
+  } catch (error: any) {
+    console.error("Checkout Failed:", error.message);
+    if (error.response) {
+      console.error(
+        "Error Response:",
+        JSON.stringify(error.response.data, null, 2)
+      );
+    }
+    return false;
+  }
+}
 
-    startScreenCapture(userId, trackingSettings, token);
-    startUserActivityTracking(userId, trackingSettings);
+ipcMain.on(
+  "login",
+  async (_event, userId, trackingSettings, token, refreshToken) => {
+    try {
+      if (!trackingSettings)
+        return console.error("No tracking settings provided");
 
-    console.log("Tracking services started successfully");
-  } catch (error) {
-    console.error("Login initialization failed:", error);
+      currentUserId = userId;
+
+      console.log(
+        `[Main] Login received. User: ${userId}, Token: ${!!token}, RefreshToken: ${!!refreshToken}`
+      );
+
+      setApiToken(token);
+      setScreenCaptureToken(token);
+      if (refreshToken) setRefreshToken(refreshToken);
+      else console.warn("[Main] WARNING: No refresh token received!");
+
+      if (!trackingSettings.isActive)
+        return console.log("Tracking is inactive for this user/company");
+
+      startScreenCapture(userId, trackingSettings, token);
+      startUserActivityTracking(userId, trackingSettings);
+
+      await handleCheckIn(userId);
+
+      console.log("Tracking services started successfully");
+    } catch (error) {
+      console.error("Login initialization failed:", error);
+    }
+  }
+);
+
+ipcMain.handle("confirm-checkout", async () => {
+  const success = await handleCheckOut();
+  if (success) {
+    isQuitting = true;
+    app.quit();
+    return { success: true };
+  } else {
+    return { success: false, message: "Checkout API failed. Check internet?" };
   }
 });
 
+ipcMain.on("cancel-close", () => {
+  // Just do nothing, checking "close" was already prevented.
+  console.log("User cancelled checkout/close");
+});
+
 ipcMain.on("logout", async () => {
+  log.info(
+    `[main] Logout requested. Clearing session for user: ${currentUserId}`
+  );
   try {
     const ses = session.fromPartition("persist:tracking-session");
     await ses.clearStorageData({
@@ -281,10 +408,14 @@ ipcMain.on("logout", async () => {
 
   stopScreenCapture();
   stopUserActivityTracking();
+  currentUserId = null;
+  setApiToken("");
+  setScreenCaptureToken("");
 });
 
 ipcMain.on("update-token", (_event, token) => {
-  setAuthToken(token);
+  setApiToken(token);
+  setScreenCaptureToken(token);
 });
 
 ipcMain.handle("test-api-connection", async () => {
@@ -320,50 +451,6 @@ ipcMain.handle("get-cookies", async () => {
     console.error("Failed to get cookies:", error);
     return [];
   }
-});
-
-const oauth2Client = new google.auth.OAuth2(
-  process.env.GOOGLE_CLIENT_ID,
-  process.env.GOOGLE_CLIENT_SECRET,
-  "http://localhost:3000/oauth/callback"
-);
-
-ipcMain.handle("google-oauth", async () => {
-  const authUrl = oauth2Client.generateAuthUrl({
-    access_type: "offline",
-    prompt: "select_account",
-    scope: ["profile", "email"],
-  });
-
-  return new Promise((resolve, reject) => {
-    const authWin = new BrowserWindow({
-      width: 500,
-      height: 600,
-      webPreferences: { nodeIntegration: false },
-    });
-
-    authWin.loadURL(authUrl);
-
-    authWin.webContents.on("will-redirect", async (_event, url) => {
-      if (url.startsWith("http://localhost:3000/oauth/callback")) {
-        const urlParams = new URL(url).searchParams;
-        const code = urlParams.get("code");
-
-        try {
-          const { tokens } = await oauth2Client.getToken(code as string);
-          resolve(tokens.id_token);
-          authWin.close();
-        } catch (err) {
-          reject(err);
-          authWin.close();
-        }
-      }
-    });
-
-    authWin.on("closed", () => {
-      reject(new Error("User closed the login window"));
-    });
-  });
 });
 
 ipcMain.on("open-browser-auth", (_event, url) => {
