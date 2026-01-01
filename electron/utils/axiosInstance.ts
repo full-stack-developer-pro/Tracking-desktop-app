@@ -1,7 +1,8 @@
 import axios from "axios";
 
 const API_URL: string = `${
-  import.meta.env.VITE_BACKEND_URL || "https://trackingtime-niy8.onrender.com"
+  import.meta.env.VITE_BACKEND_URL ||
+  "https://darkturquoise-goat-278295.hostingersite.com/"
 }/api`;
 
 const api = axios.create({
@@ -37,7 +38,6 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // Prevent infinite loops
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
@@ -46,8 +46,6 @@ api.interceptors.response.use(
         if (refreshToken) {
           console.log("Attempting to refresh access token...");
 
-          // Use axios directly to avoid circular dependency loop with interceptors
-          // or create a separate instance for refresh
           const { data } = await axios.post(
             `${API_URL}/auth/refresh-token`,
             { refreshToken },
@@ -62,7 +60,6 @@ api.interceptors.response.use(
             localStorage.setItem("refreshToken", newRefreshToken);
           }
 
-          // Sync new token with Electron Main Process
           if (window.electronAPI?.updateToken) {
             window.electronAPI.updateToken(accessToken);
           }
@@ -76,7 +73,6 @@ api.interceptors.response.use(
         }
       } catch (refreshError) {
         console.error("Token refresh failed:", refreshError);
-        // Logout user if refresh fails
         localStorage.clear();
         window.dispatchEvent(new Event("auth:logout"));
       }
