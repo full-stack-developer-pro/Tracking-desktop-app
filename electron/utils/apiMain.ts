@@ -4,7 +4,8 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const API_URL =
-  process.env.VITE_BACKEND_URL || "https://trackingtime-niy8.onrender.com";
+  process.env.VITE_BACKEND_URL ||
+  "https://darkturquoise-goat-278295.hostingersite.com";
 
 const apiMain = axios.create({
   baseURL: `${API_URL}/api`,

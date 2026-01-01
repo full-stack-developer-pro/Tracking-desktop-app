@@ -112,7 +112,11 @@ export default function Login() {
 
           if (window.electronAPI) {
             window.electronAPI.login(userId, trackingSettings, token);
-            if (!trackingSettings?.isActive) {
+            if (!trackingSettings) {
+              toast.warn(
+                "Could not fetch company settings. Tracking might be limited."
+              );
+            } else if (!trackingSettings.isActive) {
               toast.info("Tracking is disabled for your company.");
             } else {
               toast.success("Desktop tracking started!");

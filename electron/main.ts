@@ -280,9 +280,15 @@ if (!gotTheLock) {
       try {
         (autoUpdater as any).autoDownload = false;
         const result = await (autoUpdater as any).checkForUpdates();
+
+        const currentVersion = app.getVersion();
+        const updateVersion = result?.updateInfo?.version;
+        const isUpdateAvailable =
+          updateVersion && updateVersion !== currentVersion;
+
         return {
-          updateAvailable: !!(result && result.updateInfo),
-          version: result?.updateInfo.version,
+          updateAvailable: isUpdateAvailable,
+          version: updateVersion,
         };
       } catch (error: any) {
         log.error("Failed to check for updates:", error);
@@ -421,7 +427,8 @@ ipcMain.on("update-token", (_event, token) => {
 ipcMain.handle("test-api-connection", async () => {
   try {
     const API_URL =
-      process.env.VITE_BACKEND_URL || "https://trackingtime-niy8.onrender.com";
+      process.env.VITE_BACKEND_URL ||
+      "https://darkturquoise-goat-278295.hostingersite.com";
 
     const response = await axios.get(`${API_URL}/api/auth/test`, {
       timeout: 5000,

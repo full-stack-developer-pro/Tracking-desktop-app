@@ -21,9 +21,9 @@ async function uploadScreenshot(
     if (inActiveDuration)
       formData.append("inActiveDuration", inActiveDuration.toString());
 
-    // Hardcoded fallback or use env var (process.env works in Node)
     const API_URL =
-      process.env.VITE_BACKEND_URL || "https://trackingtime-niy8.onrender.com";
+      process.env.VITE_BACKEND_URL ||
+      "https://darkturquoise-goat-278295.hostingersite.com";
 
     const res = await axios.post(`${API_URL}/api/upload/image`, formData, {
       headers: {
