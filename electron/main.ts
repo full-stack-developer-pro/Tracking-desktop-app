@@ -395,8 +395,7 @@ ipcMain.handle("confirm-checkout", async () => {
 });
 
 ipcMain.on("cancel-close", () => {
-  // Just do nothing, checking "close" was already prevented.
-  console.log("User cancelled checkout/close");
+  console.log("user cancelled checkout/close");
 });
 
 ipcMain.on("logout", async () => {

@@ -3,7 +3,7 @@
   "private": true,
   "description": "A desktop application for tracking time and activity",
   "author": "Tracking Time Team",
-  "version": "1.3.8",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && npm run electron-dev\"",

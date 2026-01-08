@@ -43,7 +43,6 @@ apiMain.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // Status 401 handling
     if (error.response?.status === 401 && !originalRequest._retry) {
       console.log(
         `[Main API] 401 Detected. Refresh Token Available? ${!!currentRefreshToken}`
@@ -54,10 +53,6 @@ apiMain.interceptors.response.use(
         originalRequest._retry = true;
 
         try {
-          // Call refresh endpoint
-          // We use axios.create() to avoid interceptors loop or use apiMain without interceptors?
-          // Safer to use a clean axios post, but we need base URL.
-          // Let's use clean axios.
           const refreshResponse = await axios.post(
             `${API_URL}/api/auth/refresh-token`,
             {
@@ -73,7 +68,6 @@ apiMain.interceptors.response.use(
             setAuthToken(accessToken);
             if (newRefreshToken) setRefreshToken(newRefreshToken);
 
-            // Update header for original request
             originalRequest.headers["Authorization"] = `Bearer ${accessToken}`;
             return apiMain(originalRequest);
           }
@@ -85,11 +79,19 @@ apiMain.interceptors.response.use(
               JSON.stringify(refreshErr.response.data)
             );
           }
-          // If refresh fails, we can't do much in Main process other than log out or stop tracking.
-          // For now, allow the error to propagate.
         }
       } else {
         console.warn("[Main API] No refresh token available to handle 401.");
+      }
+
+      try {
+        const { BrowserWindow } = await import("electron");
+        const mainWindow = BrowserWindow.getAllWindows()[0];
+        if (mainWindow) {
+          mainWindow.webContents.send("session-expired");
+        }
+      } catch (e) {
+        console.error("Failed to send session-expired to renderer:", e);
       }
     }
 

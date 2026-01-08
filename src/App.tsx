@@ -11,7 +11,6 @@ const App = () => {
   const [isCheckingOut, setIsCheckingOut] = useState(false);
 
   useEffect(() => {
-    // 1. Startup Logic: Check for existing token and auto-login
     const token = localStorage.getItem("token");
     const userId = localStorage.getItem("userId");
     const companyId = localStorage.getItem("companyId");
@@ -20,14 +19,10 @@ const App = () => {
     const initTracking = async () => {
       if (token && userId && companyId) {
         try {
-          // Fetch settings to ensure we are up to date (and to get 'isActive')
-          // Note: This relies on axiosInstance using the localStorage token
           const { data } = await getTrackingSettings(companyId);
-          const settings = data?.data || data; // Adjust based on actual API response structure
+          const settings = data?.data || data;
 
           if (settings) {
-            // Using electronAPI is cleaner if available, but staying consistent with 'ipcRenderer' style for now
-            // window.electronAPI.login(userId, settings, token);
             window.ipcRenderer.send(
               "login",
               userId,
@@ -39,26 +34,30 @@ const App = () => {
           }
         } catch (err) {
           console.error("Failed to auto-start tracking:", err);
-          // Optionally redirect to login if token is invalid
         }
       }
     };
 
     initTracking();
 
-    // 2. Checkout Modal Listener
-    // Note: 'on' returns void in our custom implementation, so we cannot unsubscribe using its return value.
     window.ipcRenderer.on(
       "show-close-confirmation",
       (data: { date: string }) => {
-        // Preload strips event, so first arg is data
         setCheckoutDate(data.date);
         setShowCheckoutModal(true);
       }
     );
 
+    window.ipcRenderer.on("session-expired", () => {
+      console.log("Session expired - logging out...");
+      toast.error("Session expired. Please login again.");
+      localStorage.clear();
+      window.location.href = "/";
+    });
+
     return () => {
       window.ipcRenderer.removeAllListeners("show-close-confirmation");
+      window.ipcRenderer.removeAllListeners("session-expired");
     };
   }, []);
 
@@ -69,12 +68,9 @@ const App = () => {
       if (result.success) {
         toast.success("Checked out successfully!");
         setShowCheckoutModal(false);
-        // Window will close automatically from Main process
       } else {
         toast.error("Checkout failed: " + result.message);
         setIsCheckingOut(false);
-        // Do we close anyway? User said "otherwise do not close".
-        // So we leave modal open or just stop loading.
       }
     } catch (error) {
       console.error(error);

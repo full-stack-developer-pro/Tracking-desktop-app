@@ -158,11 +158,9 @@ export default function Dashboard() {
             backdropFilter: "blur(10px)",
             transition: "background-color 0.3s, border-color 0.3s",
 
-            // LIGHT MODE STYLES
             backgroundColor: "rgba(255, 255, 255, 0.8)",
             border: "1px solid rgba(255, 255, 255, 0.3)",
 
-            // DARK MODE STYLES
             [theme.getColorSchemeSelector("dark")]: {
               backgroundColor: "rgba(19, 19, 24, 0.7)",
               border: "1px solid rgba(255, 255, 255, 0.1)",

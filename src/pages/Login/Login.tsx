@@ -71,7 +71,6 @@ export default function Login() {
           setIsTestingConnection(false);
         }
 
-        // Setup Update Listeners
         if (window.electronAPI.onUpdateProgress) {
           window.electronAPI.onUpdateProgress((data) => {
             setDownloading(true);
@@ -317,7 +316,6 @@ export default function Login() {
                   </Typography>
                 </Box>
 
-                {/* Update Card */}
                 <Box
                   sx={{
                     p: 2,
