@@ -16,16 +16,12 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { logout } from "../../services/AuthServices";
 import { getTrackingSettings } from "../../services/DataServices";
-
 const WEBSITE_LOGIN_URL = `https://tracking-panel-pi.vercel.app/authorize-app`;
-
 function ColorSchemeToggle(props: IconButtonProps) {
   const { onClick, ...other } = props;
   const { mode, setMode } = useColorScheme();
   const [mounted, setMounted] = useState(false);
-
   useEffect(() => setMounted(true), []);
-
   return (
     <IconButton
       aria-label="toggle light/dark mode"
@@ -42,26 +38,22 @@ function ColorSchemeToggle(props: IconButtonProps) {
     </IconButton>
   );
 }
-
 const customTheme = extendTheme({
   colorSchemes: {
     light: {},
     dark: {},
   },
 });
-
 export default function Dashboard() {
   const navigate = useNavigate();
   const [user, setUser] = useState<any>(null);
   const [isTracking, setIsTracking] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-
   useEffect(() => {
     const userString = localStorage.getItem("user");
     if (userString) {
       setUser(JSON.parse(userString));
     }
-
     const checkTracking = async () => {
       const companyId = localStorage.getItem("companyId");
       if (companyId) {
@@ -76,22 +68,18 @@ export default function Dashboard() {
     };
     checkTracking();
   }, []);
-
   const handleLogout = async () => {
     setIsLoggingOut(true);
     try {
       if (window.electronAPI) {
         window.electronAPI.logout();
       }
-
       localStorage.clear();
-
       try {
         await logout();
       } catch (e) {
         console.warn("Backend logout failed", e);
       }
-
       toast.success("Logged out successfully");
       navigate("/");
     } catch (error: any) {
@@ -101,7 +89,6 @@ export default function Dashboard() {
       );
     }
   };
-
   const handleBrowserLogin = () => {
     if (window.electronAPI?.openBrowserAuth) {
       window.electronAPI.openBrowserAuth(WEBSITE_LOGIN_URL);
@@ -109,7 +96,6 @@ export default function Dashboard() {
       toast.error("Browser open not supported");
     }
   };
-
   return (
     <CssVarsProvider
       theme={customTheme}
@@ -125,7 +111,6 @@ export default function Dashboard() {
           },
         }}
       />
-
       <Box
         sx={(theme) => ({
           minHeight: "100vh",
@@ -157,10 +142,8 @@ export default function Dashboard() {
             boxShadow: "md",
             backdropFilter: "blur(10px)",
             transition: "background-color 0.3s, border-color 0.3s",
-
             backgroundColor: "rgba(255, 255, 255, 0.8)",
             border: "1px solid rgba(255, 255, 255, 0.3)",
-
             [theme.getColorSchemeSelector("dark")]: {
               backgroundColor: "rgba(19, 19, 24, 0.7)",
               border: "1px solid rgba(255, 255, 255, 0.1)",
@@ -180,7 +163,6 @@ export default function Dashboard() {
             </Typography>
             <ColorSchemeToggle />
           </Box>
-
           <Box
             sx={{
               display: "flex",
@@ -197,7 +179,6 @@ export default function Dashboard() {
               {isTracking ? "Monitoring Active" : "Monitoring Inactive"}
             </Typography>
           </Box>
-
           <Sheet
             variant="soft"
             color="primary"
@@ -217,7 +198,6 @@ export default function Dashboard() {
               <Typography level="body-xs">{user?.email}</Typography>
             </Box>
           </Sheet>
-
           <Button
             variant="outlined"
             color="neutral"
@@ -227,14 +207,12 @@ export default function Dashboard() {
           >
             Login via Website
           </Button>
-
           <Typography
             level="body-xs"
             sx={{ textAlign: "center", opacity: 0.6 }}
           >
             Use this if your session expired or you need to switch accounts.
           </Typography>
-
           <Box sx={{ mt: 2, display: "flex", justifyContent: "center" }}>
             <Button
               variant="plain"

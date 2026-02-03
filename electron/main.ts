@@ -9,8 +9,8 @@ import {
 } from "electron";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import dotenv from "dotenv";
 import axios from "axios";
+import dotenv from "dotenv";
 import {
   startScreenCapture,
   stopScreenCapture,
@@ -26,35 +26,29 @@ import apiMain, {
   setAuthToken as setApiToken,
   setRefreshToken,
 } from "./utils/apiMain";
-
 dotenv.config();
-
 const PROTOCOL_SCHEME = "tracking-time";
 const CUSTOM_PROTOCOL = "tracking-app";
 let win: BrowserWindow | null = null;
 let isQuitting = false;
 let currentUserId: string | null = null;
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 process.env.APP_ROOT = path.join(__dirname, "..");
-
 const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL;
 const preload = path.join(__dirname, "preload.mjs");
+const RENDERER_DIST = path.join(process.env.APP_ROOT as string, "dist");
+const VITE_PUBLIC = VITE_DEV_SERVER_URL
+  ? path.join(process.env.APP_ROOT as string, "public")
+  : RENDERER_DIST;
 
 function createWindow() {
   log.info("Creating window...");
-  let iconPath: string;
-
+  let iconPath = path.join(VITE_PUBLIC, "icon.png");
   if (process.platform === "win32") {
-    iconPath = path.join(process.cwd(), "public", "icon.ico");
+    iconPath = path.join(VITE_PUBLIC, "icon.ico");
   } else if (process.platform === "darwin") {
-    iconPath = path.join(process.cwd(), "public", "icon.icns");
-  } else {
-    iconPath = path.join(process.cwd(), "public", "icon.png");
+    iconPath = path.join(VITE_PUBLIC, "icon.icns");
   }
-
   win = new BrowserWindow({
     width: 500,
     height: 700,
@@ -68,12 +62,10 @@ function createWindow() {
       webSecurity: false,
     },
   });
-
   win.once("ready-to-show", () => {
     log.info("Window is ready to show");
     win?.show();
   });
-
   const devUrl = VITE_DEV_SERVER_URL || "http://localhost:5173";
   if (!app.isPackaged) {
     log.info(`Loading DEV URL: ${devUrl}`);
@@ -81,16 +73,13 @@ function createWindow() {
   } else {
     const loadUrl = `${CUSTOM_PROTOCOL}://app/index.html`;
     log.info(`Production: Loading ${loadUrl}`);
-
     win.loadURL(loadUrl).catch((e) => {
       log.error("Failed to load custom protocol URL:", e);
     });
   }
-
   app.on("before-quit", () => {
     isQuitting = true;
   });
-
   win.on("close", (e) => {
     if (!isQuitting) {
       log.info(`[main] Close detected. currentUserId: ${currentUserId}`);
@@ -106,17 +95,15 @@ function createWindow() {
         isQuitting = true;
       }
     }
-
     if (isQuitting) {
       log.info("App is quitting, cleaning up...");
       stopScreenCapture();
       stopUserActivityTracking();
     }
   });
-
   if (process.platform === "win32" || process.platform === "linux") {
     const deepLinkUrl = process.argv.find((arg) =>
-      arg.startsWith(PROTOCOL_SCHEME + "://")
+      arg.startsWith(PROTOCOL_SCHEME + "://"),
     );
     if (deepLinkUrl) {
       log.info(`Found deep link at startup: ${deepLinkUrl}`);
@@ -124,26 +111,20 @@ function createWindow() {
     }
   }
 }
-
 autoUpdater.logger = log;
 (autoUpdater.logger as any).transports.file.level = "info";
-
 autoUpdater.on("checking-for-update", () => {
   log.info("Checking for update...");
 });
-
 autoUpdater.on("update-available", (info: any) => {
   log.info(`Update available! Version: ${info.version}`);
 });
-
 autoUpdater.on("update-not-available", (info: any) => {
   log.info(`Update not available. Current version: ${info.version}`);
 });
-
 autoUpdater.on("error", (err: Error) => {
   log.error("Error in auto-updater:", err.message);
 });
-
 autoUpdater.on("download-progress", (progressObj) => {
   let msg = `Download speed: ${progressObj.bytesPerSecond} B/s`;
   msg += ` - Downloaded ${progressObj.percent.toFixed(2)}%`;
@@ -151,7 +132,6 @@ autoUpdater.on("download-progress", (progressObj) => {
   log.info(msg);
   win?.webContents.send("download-progress", progressObj);
 });
-
 autoUpdater.on("update-downloaded", (info: any) => {
   log.info(`Update downloaded. Version: ${info.version}`);
   win?.webContents.send("update-downloaded", info);
@@ -159,16 +139,10 @@ autoUpdater.on("update-downloaded", (info: any) => {
     autoUpdater.quitAndInstall();
   }, 1000);
 });
-
 export const MAIN_DIST = path.join(
   process.env.APP_ROOT as string,
-  "dist-electron"
+  "dist-electron",
 );
-export const RENDERER_DIST = path.join(process.env.APP_ROOT as string, "dist");
-
-process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL
-  ? path.join(process.env.APP_ROOT as string, "public")
-  : RENDERER_DIST;
 
 if (process.defaultApp) {
   if (process.argv.length >= 2) {
@@ -179,15 +153,12 @@ if (process.defaultApp) {
 } else {
   app.setAsDefaultProtocolClient(PROTOCOL_SCHEME);
 }
-
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow();
   }
 });
-
 const gotTheLock = app.requestSingleInstanceLock();
-
 if (!gotTheLock) {
   app.quit();
 } else {
@@ -203,20 +174,18 @@ if (!gotTheLock) {
       },
     },
   ]);
-
   app.on("second-instance", (_event, commandLine, _workingDirectory) => {
     if (win) {
       if (win.isMinimized()) win.restore();
       win.focus();
     }
     const deepLinkUrl = commandLine.find((arg) =>
-      arg.startsWith(PROTOCOL_SCHEME + "://")
+      arg.startsWith(PROTOCOL_SCHEME + "://"),
     );
     if (deepLinkUrl) {
       handleDeepLink(deepLinkUrl);
     }
   });
-
   app.whenReady().then(() => {
     if (app.isPackaged) {
       log.info("Configuring app to launch at login...");
@@ -224,34 +193,26 @@ if (!gotTheLock) {
         openAtLogin: true,
         path: app.getPath("exe"),
       });
-
       log.info(
-        "Registering custom protocol handler for PARTITION 'persist:tracking-session'..."
+        "Registering custom protocol handler for PARTITION 'persist:tracking-session'...",
       );
       const ses = session.fromPartition("persist:tracking-session");
-
       ses.protocol.handle(CUSTOM_PROTOCOL, async (request) => {
         try {
           const url = new URL(request.url);
           let relativePath = url.pathname;
-
           if (relativePath === "/" || relativePath === "") {
             relativePath = "/index.html";
           }
-
           relativePath = decodeURIComponent(relativePath);
-
           const absolutePath = path.join(
             app.getAppPath(),
             "dist",
-            relativePath
+            relativePath,
           );
-
           log.info(`[Protocol] Request: ${request.url} -> ${absolutePath}`);
-
           const fs = await import("fs/promises");
           const data = await fs.readFile(absolutePath);
-
           const ext = path.extname(absolutePath);
           let mimeType = "text/html";
           if (ext === ".js") mimeType = "text/javascript";
@@ -259,7 +220,6 @@ if (!gotTheLock) {
           else if (ext === ".svg") mimeType = "image/svg+xml";
           else if (ext === ".json") mimeType = "application/json";
           else if (ext === ".png") mimeType = "image/png";
-
           return new Response(data, {
             headers: { "content-type": mimeType },
           });
@@ -269,9 +229,7 @@ if (!gotTheLock) {
         }
       });
     }
-
     createWindow();
-
     ipcMain.handle("check-for-updates", async () => {
       if (!app.isPackaged) {
         log.info("Skipping update check in dev mode");
@@ -280,12 +238,10 @@ if (!gotTheLock) {
       try {
         (autoUpdater as any).autoDownload = false;
         const result = await (autoUpdater as any).checkForUpdates();
-
         const currentVersion = app.getVersion();
         const updateVersion = result?.updateInfo?.version;
         const isUpdateAvailable =
           updateVersion && updateVersion !== currentVersion;
-
         return {
           updateAvailable: isUpdateAvailable,
           version: updateVersion,
@@ -295,7 +251,6 @@ if (!gotTheLock) {
         return { error: error.message };
       }
     });
-
     ipcMain.handle("start-download-update", async () => {
       try {
         await (autoUpdater as any).downloadUpdate();
@@ -305,13 +260,11 @@ if (!gotTheLock) {
         return { success: false, error: error.message };
       }
     });
-
     ipcMain.handle("quit-and-install-update", () => {
       autoUpdater.quitAndInstall();
     });
   });
 }
-
 async function handleCheckIn(userId: string) {
   try {
     console.log("Attempting Check-in for user:", userId);
@@ -322,16 +275,15 @@ async function handleCheckIn(userId: string) {
     if (error.response) {
       console.error(
         "Error Response:",
-        JSON.stringify(error.response.data, null, 2)
+        JSON.stringify(error.response.data, null, 2),
       );
     }
   }
 }
-
 async function handleCheckOut() {
   if (!currentUserId) {
     console.log("No user logged in, skipping checkout.");
-    return true; // Allow close if no user
+    return true;
   }
   try {
     console.log("Attempting Check-out for user:", currentUserId);
@@ -343,46 +295,37 @@ async function handleCheckOut() {
     if (error.response) {
       console.error(
         "Error Response:",
-        JSON.stringify(error.response.data, null, 2)
+        JSON.stringify(error.response.data, null, 2),
       );
     }
     return false;
   }
 }
-
 ipcMain.on(
   "login",
   async (_event, userId, trackingSettings, token, refreshToken) => {
     try {
       if (!trackingSettings)
         return console.error("No tracking settings provided");
-
       currentUserId = userId;
-
       console.log(
-        `[Main] Login received. User: ${userId}, Token: ${!!token}, RefreshToken: ${!!refreshToken}`
+        `[Main] Login received. User: ${userId}, Token: ${!!token}, RefreshToken: ${!!refreshToken}`,
       );
-
       setApiToken(token);
       setScreenCaptureToken(token);
       if (refreshToken) setRefreshToken(refreshToken);
       else console.warn("[Main] WARNING: No refresh token received!");
-
       if (!trackingSettings.isActive)
         return console.log("Tracking is inactive for this user/company");
-
       startScreenCapture(userId, trackingSettings, token);
       startUserActivityTracking(userId, trackingSettings);
-
       await handleCheckIn(userId);
-
       console.log("Tracking services started successfully");
     } catch (error) {
       console.error("Login initialization failed:", error);
     }
-  }
+  },
 );
-
 ipcMain.handle("confirm-checkout", async () => {
   const success = await handleCheckOut();
   if (success) {
@@ -393,14 +336,12 @@ ipcMain.handle("confirm-checkout", async () => {
     return { success: false, message: "Checkout API failed. Check internet?" };
   }
 });
-
 ipcMain.on("cancel-close", () => {
   console.log("user cancelled checkout/close");
 });
-
 ipcMain.on("logout", async () => {
   log.info(
-    `[main] Logout requested. Clearing session for user: ${currentUserId}`
+    `[main] Logout requested. Clearing session for user: ${currentUserId}`,
   );
   try {
     const ses = session.fromPartition("persist:tracking-session");
@@ -410,29 +351,24 @@ ipcMain.on("logout", async () => {
   } catch (error) {
     console.error("Failed to clear session:", error);
   }
-
   stopScreenCapture();
   stopUserActivityTracking();
   currentUserId = null;
   setApiToken("");
   setScreenCaptureToken("");
 });
-
 ipcMain.on("update-token", (_event, token) => {
   setApiToken(token);
   setScreenCaptureToken(token);
 });
-
 ipcMain.handle("test-api-connection", async () => {
   try {
     const API_URL =
       process.env.VITE_BACKEND_URL ||
       "https://darkturquoise-goat-278295.hostingersite.com";
-
     const response = await axios.get(`${API_URL}/api/auth/test`, {
       timeout: 5000,
     });
-
     return { success: true, data: response.data };
   } catch (error: any) {
     return {
@@ -442,7 +378,6 @@ ipcMain.handle("test-api-connection", async () => {
     };
   }
 });
-
 ipcMain.handle("get-cookies", async () => {
   try {
     const ses = session.fromPartition("persist:tracking-session");
@@ -458,36 +393,30 @@ ipcMain.handle("get-cookies", async () => {
     return [];
   }
 });
-
 ipcMain.on("open-browser-auth", (_event, url) => {
   if (url && (url.startsWith("http://") || url.startsWith("https://"))) {
     shell.openExternal(url);
   } else {
     dialog.showErrorBox(
       "Invalid Launch URL",
-      `The application tried to open an invalid URL: "${url}"\n\nPossible cause: VITE_FRONTEND_URL environment variable is missing.`
+      `The application tried to open an invalid URL: "${url}"\n\nPossible cause: VITE_FRONTEND_URL environment variable is missing.`,
     );
     log.error(`Failed to open external URL: ${url}`);
   }
 });
-
 app.on("open-url", (event, url) => {
   event.preventDefault();
   handleDeepLink(url);
 });
-
 function handleDeepLink(urlStr: string) {
   try {
     if (!urlStr.startsWith(PROTOCOL_SCHEME + "://")) return;
-
     const urlObj = new URL(urlStr);
     const params = urlObj.searchParams;
-
     const token = params.get("token");
     const userId = params.get("userId");
     const companyId = params.get("companyId");
     const role = params.get("role");
-
     if (token && userId) {
       if (win && win.webContents) {
         win.webContents.send("deep-link-login", {
@@ -496,7 +425,6 @@ function handleDeepLink(urlStr: string) {
           companyId,
           role,
         });
-
         if (win.isMinimized()) win.restore();
         win.focus();
       }
@@ -505,7 +433,6 @@ function handleDeepLink(urlStr: string) {
     console.error("Error parsing deep link:", error);
   }
 }
-
 app.on("window-all-closed", () => {
   stopScreenCapture();
   stopUserActivityTracking();

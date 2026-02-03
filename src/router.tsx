@@ -1,8 +1,6 @@
 import { HashRouter, Route, Routes } from "react-router-dom";
 import Login from "./pages/Login/Login";
-
 import Dashboard from "./pages/Dashboard/Dashboard";
-
 const router = (
   <HashRouter>
     <Routes>
@@ -11,5 +9,4 @@ const router = (
     </Routes>
   </HashRouter>
 );
-
 export default router;

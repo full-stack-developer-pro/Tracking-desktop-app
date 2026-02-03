@@ -15,7 +15,6 @@ export interface TrackingSettings {
   quality: "low" | "medium" | "high";
   enabled: boolean;
 }
-
 export const DEFAULT_SETTINGS: TrackingSettings = {
   companyId: "",
   screenshotInterval: { min: 10, max: 20 },

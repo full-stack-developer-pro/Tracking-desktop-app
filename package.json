@@ -9,7 +9,7 @@
     "dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && npm run electron-dev\"",
     "electron-dev": "electron .",
     "build": "vite build && electron-builder",
-    "build:win": "vite build && electron-builder --win",
+    "build:win": "npx rimraf dist && vite build && electron-builder --win",
     "build:mac": "vite build && electron-builder --mac",
     "build:linux": "vite build && electron-builder --linux",
     "build:all": "vite build && electron-builder -wml",
@@ -71,6 +71,7 @@
     "react-router-dom": "^7.8.2",
     "react-toastify": "^11.0.5",
     "tailwindcss": "^4.1.12",
+    "uiohook-napi": "^1.5.4",
     "uuid": "^13.0.0",
     "zod": "^4.1.5"
   },

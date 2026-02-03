@@ -11,10 +11,10 @@ export default defineConfig(({ mode }) => {
     base: "./",
     define: {
       "import.meta.env.VITE_FRONTEND_URL": JSON.stringify(
-        process.env.VITE_FRONTEND_URL || env.VITE_FRONTEND_URL
+        process.env.VITE_FRONTEND_URL || env.VITE_FRONTEND_URL,
       ),
       "import.meta.env.VITE_BACKEND_URL": JSON.stringify(
-        process.env.VITE_BACKEND_URL || env.VITE_BACKEND_URL
+        process.env.VITE_BACKEND_URL || env.VITE_BACKEND_URL,
       ),
     },
     plugins: [
@@ -26,21 +26,32 @@ export default defineConfig(({ mode }) => {
           vite: {
             build: {
               rollupOptions: {
-                external: ["googleapis", "google-auth-library"],
+                external: ["googleapis", "google-auth-library", "uiohook-napi"],
+                output: {
+                  banner: `
+import { fileURLToPath as __fileURLToPath } from 'node:url';
+import __path from 'node:path';
+import { createRequire as __createRequire } from 'node:module';
+
+const __filename = __fileURLToPath(import.meta.url);
+const __dirname = __path.dirname(__filename);
+const require = __createRequire(import.meta.url);
+`,
+                },
               },
             },
             define: {
               "process.env.VITE_FRONTEND_URL": JSON.stringify(
-                process.env.VITE_FRONTEND_URL || env.VITE_FRONTEND_URL
+                process.env.VITE_FRONTEND_URL || env.VITE_FRONTEND_URL,
               ),
               "process.env.VITE_BACKEND_URL": JSON.stringify(
-                process.env.VITE_BACKEND_URL || env.VITE_BACKEND_URL
+                process.env.VITE_BACKEND_URL || env.VITE_BACKEND_URL,
               ),
               "process.env.GOOGLE_CLIENT_ID": JSON.stringify(
-                process.env.GOOGLE_CLIENT_ID || env.GOOGLE_CLIENT_ID
+                process.env.GOOGLE_CLIENT_ID || env.GOOGLE_CLIENT_ID,
               ),
               "process.env.GOOGLE_CLIENT_SECRET": JSON.stringify(
-                process.env.GOOGLE_CLIENT_SECRET || env.GOOGLE_CLIENT_SECRET
+                process.env.GOOGLE_CLIENT_SECRET || env.GOOGLE_CLIENT_SECRET,
               ),
             },
           },

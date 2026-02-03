@@ -1,19 +1,14 @@
 import axios from "axios";
 import dotenv from "dotenv";
-
 dotenv.config();
-
 const API_URL =
   process.env.VITE_BACKEND_URL ||
   "https://darkturquoise-goat-278295.hostingersite.com";
-
 const apiMain = axios.create({
   baseURL: `${API_URL}/api`,
   withCredentials: true,
 });
-
 let currentRefreshToken: string | null = null;
-
 export const setAuthToken = (token: string) => {
   if (token) {
     apiMain.defaults.headers.common["Authorization"] = `Bearer ${token}`;
@@ -21,14 +16,12 @@ export const setAuthToken = (token: string) => {
     delete apiMain.defaults.headers.common["Authorization"];
   }
 };
-
 export const setRefreshToken = (token: string) => {
   console.log(
     `[Main API] Setting Refresh Token. Length: ${token ? token.length : 0}`
   );
   currentRefreshToken = token;
 };
-
 apiMain.interceptors.request.use((config) => {
   console.log(
     `[Main API] Request: ${config.method?.toUpperCase()} ${config.baseURL}${
@@ -37,21 +30,17 @@ apiMain.interceptors.request.use((config) => {
   );
   return config;
 });
-
 apiMain.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
-
     if (error.response?.status === 401 && !originalRequest._retry) {
       console.log(
         `[Main API] 401 Detected. Refresh Token Available? ${!!currentRefreshToken}`
       );
-
       if (currentRefreshToken) {
         console.log("[Main API] Attempting refresh...");
         originalRequest._retry = true;
-
         try {
           const refreshResponse = await axios.post(
             `${API_URL}/api/auth/refresh-token`,
@@ -59,15 +48,12 @@ apiMain.interceptors.response.use(
               refreshToken: currentRefreshToken,
             }
           );
-
           const { accessToken, refreshToken: newRefreshToken } =
             refreshResponse.data?.data || refreshResponse.data;
-
           if (accessToken) {
             console.log("[Main API] Token refreshed successfully.");
             setAuthToken(accessToken);
             if (newRefreshToken) setRefreshToken(newRefreshToken);
-
             originalRequest.headers["Authorization"] = `Bearer ${accessToken}`;
             return apiMain(originalRequest);
           }
@@ -83,7 +69,6 @@ apiMain.interceptors.response.use(
       } else {
         console.warn("[Main API] No refresh token available to handle 401.");
       }
-
       try {
         const { BrowserWindow } = await import("electron");
         const mainWindow = BrowserWindow.getAllWindows()[0];
@@ -94,13 +79,11 @@ apiMain.interceptors.response.use(
         console.error("Failed to send session-expired to renderer:", e);
       }
     }
-
     console.error(
       `[Main API] Error: ${error.response?.status} ${error.config?.url} - ${error.message}`
     );
     const fullUrl = `${error.config?.baseURL || ""}${error.config?.url || ""}`;
     console.error(`[Main API] Failed URL: ${fullUrl}`);
-
     if (error.response?.data) {
       console.error(
         "[Main API] Error Response Data:",
@@ -110,5 +93,4 @@ apiMain.interceptors.response.use(
     return Promise.reject(error);
   }
 );
-
 export default apiMain;

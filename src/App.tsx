@@ -4,24 +4,20 @@ import { AuthProvider } from "./context/AuthContext";
 import { ToastContainer, toast } from "react-toastify";
 import CheckoutModal from "./components/CheckoutModal";
 import { getTrackingSettings } from "./services/DataServices";
-
 const App = () => {
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [checkoutDate, setCheckoutDate] = useState("");
   const [isCheckingOut, setIsCheckingOut] = useState(false);
-
   useEffect(() => {
     const token = localStorage.getItem("token");
     const userId = localStorage.getItem("userId");
     const companyId = localStorage.getItem("companyId");
     const refreshToken = localStorage.getItem("refreshToken");
-
     const initTracking = async () => {
       if (token && userId && companyId) {
         try {
           const { data } = await getTrackingSettings(companyId);
           const settings = data?.data || data;
-
           if (settings) {
             window.ipcRenderer.send(
               "login",
@@ -37,9 +33,7 @@ const App = () => {
         }
       }
     };
-
     initTracking();
-
     window.ipcRenderer.on(
       "show-close-confirmation",
       (data: { date: string }) => {
@@ -47,20 +41,17 @@ const App = () => {
         setShowCheckoutModal(true);
       }
     );
-
     window.ipcRenderer.on("session-expired", () => {
       console.log("Session expired - logging out...");
       toast.error("Session expired. Please login again.");
       localStorage.clear();
       window.location.href = "/";
     });
-
     return () => {
       window.ipcRenderer.removeAllListeners("show-close-confirmation");
       window.ipcRenderer.removeAllListeners("session-expired");
     };
   }, []);
-
   const handleConfirmCheckout = async () => {
     setIsCheckingOut(true);
     try {
@@ -78,12 +69,10 @@ const App = () => {
       setIsCheckingOut(false);
     }
   };
-
   const handleCancelCheckout = () => {
     setShowCheckoutModal(false);
     window.ipcRenderer.send("cancel-close");
   };
-
   return (
     <AuthProvider>
       <ToastContainer
@@ -99,7 +88,6 @@ const App = () => {
         theme="light"
       />
       {router}
-
       <CheckoutModal
         isOpen={showCheckoutModal}
         date={checkoutDate}
@@ -110,5 +98,4 @@ const App = () => {
     </AuthProvider>
   );
 };
-
 export default App;

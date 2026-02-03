@@ -1,5 +1,4 @@
 import React from "react";
-
 type CheckoutModalProps = {
   isOpen: boolean;
   date: string;
@@ -7,7 +6,6 @@ type CheckoutModalProps = {
   onCancel: () => void;
   isLoading: boolean;
 };
-
 const CheckoutModal: React.FC<CheckoutModalProps> = ({
   isOpen,
   date,
@@ -16,7 +14,6 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
   isLoading,
 }) => {
   if (!isOpen) return null;
-
   return (
     <div
       style={{
@@ -51,7 +48,6 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
           <br />
           <small>Closing without checkout may lose tracked hours.</small>
         </p>
-
         <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
           <button
             onClick={onCancel}
@@ -87,5 +83,4 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
     </div>
   );
 };
-
 export default CheckoutModal;

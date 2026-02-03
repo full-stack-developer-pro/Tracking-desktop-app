@@ -1,5 +1,4 @@
 import { ipcRenderer, contextBridge } from "electron";
-
 contextBridge.exposeInMainWorld("electronAPI", {
   login: (
     userId: string,
@@ -34,7 +33,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
   removeUpdateDownloadedListener: () =>
     ipcRenderer.removeAllListeners("update-downloaded"),
 });
-
 contextBridge.exposeInMainWorld("ipcRenderer", {
   send: (channel: string, ...args: any[]) => {
     const validChannels = [

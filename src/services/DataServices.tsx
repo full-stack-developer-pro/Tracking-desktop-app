@@ -1,5 +1,4 @@
 import api from "../../electron/utils/axiosInstance";
-
 const uploadImage = (data: any) => {
   return api.post("/upload/image", data, {
     headers: {
@@ -8,9 +7,7 @@ const uploadImage = (data: any) => {
     },
   });
 };
-
 const getTrackingSettings = (companyId: string) => {
   return api.get(`/trackings/company/${companyId}`);
 };
-
 export { uploadImage, getTrackingSettings };

@@ -1,8 +1,8 @@
 {
   $schema: "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
-  appId: "YourAppID",
+  appId: "com.tracking-time.app",
   asar: true,
-  productName: "YourAppName",
+  productName: "Tracking Time",
   directories: {
     output: "release/${version}",
   },
@@ -10,6 +10,7 @@
   mac: {
     target: ["dmg"],
     artifactName: "${productName}-Mac-${version}-Installer.${ext}",
+    icon: "public/icon.icns",
   },
   win: {
     target: [
@@ -19,6 +20,7 @@
       },
     ],
     artifactName: "${productName}-Windows-${version}-Setup.${ext}",
+    icon: "public/icon.ico",
   },
   nsis: {
     oneClick: false,
@@ -29,5 +31,6 @@
   linux: {
     target: ["AppImage"],
     artifactName: "${productName}-Linux-${version}.${ext}",
+    icon: "public/icon.png",
   },
 }

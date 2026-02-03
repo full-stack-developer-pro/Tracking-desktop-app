@@ -13,18 +13,14 @@ import OpenInNewRoundedIcon from "@mui/icons-material/OpenInNewRounded";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { getTrackingSettings } from "../../services/DataServices";
-
 const WEBSITE_LOGIN_URL = `${
   import.meta.env.VITE_FRONTEND_URL || "https://tracking-panel-pi.vercel.app"
 }/authorize-app`;
-
 function ColorSchemeToggle(props: IconButtonProps) {
   const { onClick, ...other } = props;
   const { mode, setMode } = useColorScheme();
   const [mounted, setMounted] = useState(false);
-
   useEffect(() => setMounted(true), []);
-
   return (
     <IconButton
       aria-label="toggle light/dark mode"
@@ -41,7 +37,6 @@ function ColorSchemeToggle(props: IconButtonProps) {
     </IconButton>
   );
 }
-
 export default function Login() {
   const navigate = useNavigate();
   const [isElectronAvailable, setIsElectronAvailable] = useState(false);
@@ -51,14 +46,12 @@ export default function Login() {
   const [downloading, setDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState<any>(null);
   const [updateReady, setUpdateReady] = useState(false);
-
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (token) {
       navigate("/dashboard");
       return;
     }
-
     const checkElectronAPI = async () => {
       if (window.electronAPI) {
         setIsElectronAvailable(true);
@@ -70,14 +63,12 @@ export default function Login() {
         } finally {
           setIsTestingConnection(false);
         }
-
         if (window.electronAPI.onUpdateProgress) {
           window.electronAPI.onUpdateProgress((data) => {
             setDownloading(true);
             setDownloadProgress(data);
           });
         }
-
         if (window.electronAPI.onUpdateDownloaded) {
           window.electronAPI.onUpdateDownloaded((info) => {
             setDownloading(false);
@@ -87,13 +78,10 @@ export default function Login() {
         }
       }
     };
-
     if (window.electronAPI && window.electronAPI.onDeepLinkLogin) {
       window.electronAPI.onDeepLinkLogin(async (data: any) => {
         const { token, userId, companyId, role } = data;
-
         toast.info("Verifying session...");
-
         try {
           let trackingSettings = null;
           if (
@@ -108,7 +96,6 @@ export default function Login() {
               console.error("Failed to fetch settings:", err);
             }
           }
-
           if (window.electronAPI) {
             window.electronAPI.login(userId, trackingSettings, token);
             if (!trackingSettings) {
@@ -121,7 +108,6 @@ export default function Login() {
               toast.success("Desktop tracking started!");
             }
           }
-
           localStorage.setItem("token", token);
           localStorage.setItem("userId", userId);
           localStorage.setItem("role", role);
@@ -130,7 +116,6 @@ export default function Login() {
             "trackingSettings",
             JSON.stringify(trackingSettings)
           );
-
           navigate("/dashboard");
         } catch (error) {
           console.error("Deep link initialization error:", error);
@@ -139,9 +124,7 @@ export default function Login() {
         }
       });
     }
-
     checkElectronAPI();
-
     return () => {
       if (window.electronAPI) {
         if (window.electronAPI.removeDeepLinkListener)
@@ -153,7 +136,6 @@ export default function Login() {
       }
     };
   }, [navigate]);
-
   const handleCheckUpdate = async () => {
     if (!window.electronAPI) return;
     setCheckingUpdate(true);
@@ -173,17 +155,14 @@ export default function Login() {
       setCheckingUpdate(false);
     }
   };
-
   const handleStartDownload = async () => {
     if (!window.electronAPI) return;
     setDownloading(true);
     await window.electronAPI.startDownload();
   };
-
   const handleQuitAndInstall = () => {
     if (window.electronAPI) window.electronAPI.quitAndInstall();
   };
-
   const handleBrowserLogin = () => {
     if (window.electronAPI?.openBrowserAuth) {
       window.electronAPI.openBrowserAuth(WEBSITE_LOGIN_URL);
@@ -192,14 +171,12 @@ export default function Login() {
       toast.error("Browser login not supported in this version.");
     }
   };
-
   const customTheme = extendTheme({
     colorSchemes: {
       light: {},
       dark: {},
     },
   });
-
   return (
     <CssVarsProvider
       theme={customTheme}
@@ -315,7 +292,6 @@ export default function Login() {
                     Use this if you are already logged in on the website.
                   </Typography>
                 </Box>
-
                 <Box
                   sx={{
                     p: 2,
@@ -338,7 +314,6 @@ export default function Login() {
                       Check for Updates
                     </Button>
                   )}
-
                   {updateAvailable && !downloading && !updateReady && (
                     <Box>
                       <Typography level="body-xs" mb={1}>
@@ -349,7 +324,6 @@ export default function Login() {
                       </Button>
                     </Box>
                   )}
-
                   {downloading && (
                     <Box>
                       <Typography level="body-xs">
@@ -360,7 +334,6 @@ export default function Login() {
                       </Typography>
                     </Box>
                   )}
-
                   {updateReady && (
                     <Button
                       onClick={handleQuitAndInstall}
@@ -374,7 +347,6 @@ export default function Login() {
                 </Box>
               </>
             )}
-
             {!isElectronAvailable && (
               <Box
                 sx={{

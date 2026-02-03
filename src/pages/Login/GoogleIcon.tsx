@@ -1,5 +1,4 @@
 import SvgIcon from "@mui/joy/SvgIcon";
-
 export default function GoogleIcon() {
   return (
     <SvgIcon fontSize="xl">
