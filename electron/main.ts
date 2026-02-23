@@ -113,6 +113,8 @@ function createWindow() {
 }
 autoUpdater.logger = log;
 (autoUpdater.logger as any).transports.file.level = "info";
+autoUpdater.autoDownload = true;
+autoUpdater.autoInstallOnAppQuit = true;
 autoUpdater.on("checking-for-update", () => {
   log.info("Checking for update...");
 });
@@ -230,6 +232,12 @@ if (!gotTheLock) {
       });
     }
     createWindow();
+    if (app.isPackaged) {
+      log.info("Auto-checking for updates on startup...");
+      autoUpdater.checkForUpdates().catch((err: Error) => {
+        log.error("Auto-update check failed on startup:", err.message);
+      });
+    }
     ipcMain.handle("check-for-updates", async () => {
       if (!app.isPackaged) {
         log.info("Skipping update check in dev mode");
@@ -318,7 +326,7 @@ ipcMain.on(
       if (!trackingSettings.isActive)
         return console.log("Tracking is inactive for this user/company");
       startScreenCapture(userId, trackingSettings, token);
-      startUserActivityTracking(userId, trackingSettings);
+      startUserActivityTracking(userId, trackingSettings, token);
       await handleCheckIn(userId);
       console.log("Tracking services started successfully");
     } catch (error) {
@@ -360,6 +368,8 @@ ipcMain.on("logout", async () => {
 ipcMain.on("update-token", (_event, token) => {
   setApiToken(token);
   setScreenCaptureToken(token);
+  // Also update activity tracking token
+  import("./backgroundTask/userActivity").then((m) => m.setAuthToken(token));
 });
 ipcMain.handle("test-api-connection", async () => {
   try {

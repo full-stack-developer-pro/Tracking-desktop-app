@@ -71,22 +71,27 @@ export default function Dashboard() {
   const handleLogout = async () => {
     setIsLoggingOut(true);
     try {
-      if (window.electronAPI) {
-        window.electronAPI.logout();
-      }
-      localStorage.clear();
       try {
         await logout();
       } catch (e) {
-        console.warn("Backend logout failed", e);
+        console.warn("Backend logout failed (might be already expired)", e);
       }
+
+      if (window.electronAPI) {
+        window.electronAPI.logout();
+      }
+
+      localStorage.clear();
+
       toast.success("Logged out successfully");
       navigate("/");
     } catch (error: any) {
       console.log(error);
       toast.error(
-        error?.response?.data?.message || "Facing some error in log out"
+        error?.response?.data?.message || "Facing some error in log out",
       );
+    } finally {
+      setIsLoggingOut(false);
     }
   };
   const handleBrowserLogin = () => {
@@ -193,7 +198,7 @@ export default function Dashboard() {
             <CheckCircleRoundedIcon />{" "}
             <Box>
               <Typography level="title-sm">
-                Logged in as {user?.firstName || "User"}
+                Logged in as {user?.firstName || "employee"}
               </Typography>
               <Typography level="body-xs">{user?.email}</Typography>
             </Box>

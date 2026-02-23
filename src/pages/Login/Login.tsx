@@ -76,6 +76,17 @@ export default function Login() {
             toast.success(`Update ready to install: ${info.version}`);
           });
         }
+        if (window.electronAPI.checkForUpdates) {
+          window.electronAPI
+            .checkForUpdates()
+            .then((result: any) => {
+              if (result?.updateAvailable) {
+                setUpdateAvailable(result);
+                toast.info(`New version available: ${result.version}`);
+              }
+            })
+            .catch(() => {});
+        }
       }
     };
     if (window.electronAPI && window.electronAPI.onDeepLinkLogin) {
@@ -83,6 +94,20 @@ export default function Login() {
         const { token, userId, companyId, role } = data;
         toast.info("Verifying session...");
         try {
+          const API_URL = `${
+            import.meta.env.VITE_BACKEND_URL ||
+            "https://darkturquoise-goat-278295.hostingersite.com/"
+          }/api`;
+          const verifyRes = await fetch(`${API_URL}/auth/tokens`, {
+            headers: { Authorization: `Bearer ${token}` },
+            credentials: "include",
+          });
+          if (!verifyRes.ok) {
+            toast.error(
+              "Session expired or invalid. Please log in again on the website.",
+            );
+            return;
+          }
           let trackingSettings = null;
           if (
             companyId &&
@@ -100,7 +125,7 @@ export default function Login() {
             window.electronAPI.login(userId, trackingSettings, token);
             if (!trackingSettings) {
               toast.warn(
-                "Could not fetch company settings. Tracking might be limited."
+                "Could not fetch company settings. Tracking might be limited.",
               );
             } else if (!trackingSettings.isActive) {
               toast.info("Tracking is disabled for your company.");
@@ -114,13 +139,14 @@ export default function Login() {
           localStorage.setItem("companyId", companyId || "");
           localStorage.setItem(
             "trackingSettings",
-            JSON.stringify(trackingSettings)
+            JSON.stringify(trackingSettings),
           );
           navigate("/dashboard");
         } catch (error) {
           console.error("Deep link initialization error:", error);
-          toast.error("Login successful, but initialization failed.");
-          navigate("/dashboard");
+          toast.error(
+            "Authentication failed. Please log in again on the website.",
+          );
         }
       });
     }

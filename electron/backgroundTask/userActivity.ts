@@ -8,7 +8,8 @@ let activityInterval: NodeJS.Timeout | null = null;
 let syncInterval: NodeJS.Timeout | null = null;
 let currentUserId: string = "";
 let currentSettings: any = null;
-const CHECK_INTERVAL_SECONDS = 20;
+let authToken: string = "";
+const CHECK_INTERVAL_SECONDS = 10;
 const SYNC_INTERVAL_SECONDS = 60;
 let INACTIVE_THRESHOLD_SECONDS = 300;
 let lastScreenshotTime = 0;
@@ -18,8 +19,10 @@ let keyboardPresses = 0;
 const startUserActivityTracking = async (
   userId: string,
   trackingSettings: any,
+  token?: string,
 ) => {
   currentUserId = userId;
+  if (token) authToken = token;
   currentSettings = trackingSettings;
   if (activityInterval) {
     log.info("Restarting activity tracking...");
@@ -40,11 +43,11 @@ const startUserActivityTracking = async (
 const setupInputHook = () => {
   try {
     uIOhook.on("mousedown", () => {
-      if (currentSettings?.activityTracking?.enabled === false) return;
+      if (currentSettings?.trackMouseClicks === false) return;
       if (!userInactive) mouseClicks++;
     });
     uIOhook.on("keydown", () => {
-      if (currentSettings?.activityTracking?.enabled === false) return;
+      if (currentSettings?.trackKeyboard === false) return;
       if (!userInactive) keyboardPresses++;
     });
     uIOhook.start();
@@ -65,19 +68,26 @@ const stopInputHook = () => {
 const startSyncingActivity = () => {
   if (syncInterval) clearInterval(syncInterval);
   syncInterval = setInterval(async () => {
+    if (
+      currentSettings?.trackMouseClicks === false &&
+      currentSettings?.trackKeyboard === false
+    )
+      return;
     if (mouseClicks === 0 && keyboardPresses === 0) return;
     const clicksToSend = mouseClicks;
     const keysToSend = keyboardPresses;
     mouseClicks = 0;
     keyboardPresses = 0;
     try {
+      const today = new Date().toISOString().split("T")[0];
       log.info(
-        `Syncing Activity: ${clicksToSend} clicks, ${keysToSend} keys to ${apiMain.defaults.baseURL}`,
+        `Syncing Activity: ${clicksToSend} clicks, ${keysToSend} keys for ${today} to ${apiMain.defaults.baseURL}`,
       );
       await apiMain.post("/activity/sync", {
         userId: currentUserId,
         mouseClicks: clicksToSend,
         keyboardPresses: keysToSend,
+        date: today,
       });
     } catch (error) {
       log.error("Failed to sync activity counts:", error);
@@ -86,16 +96,36 @@ const startSyncingActivity = () => {
     }
   }, SYNC_INTERVAL_SECONDS * 1000);
 };
+
 const startActivityMonitoring = () => {
   activityInterval = setInterval(async () => {
     try {
       const idleSeconds = powerMonitor.getSystemIdleTime();
-      const now = Date.now();
+      const now = new Date();
+
+      if (currentSettings?.breakTime?.enabled) {
+        const { startTime, endTime } = currentSettings.breakTime;
+        const currentTimeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+
+        if (currentTimeStr >= startTime && currentTimeStr <= endTime) {
+          if (userInactive) {
+            log.info("Break time started - marking user as active");
+            userInactive = false;
+            lastScreenshotTime = 0;
+          }
+          return;
+        }
+      }
+
       if (idleSeconds >= INACTIVE_THRESHOLD_SECONDS) {
         if (!userInactive) {
           log.info(`User inactive for ${Math.floor(idleSeconds / 60)} minutes`);
           userInactive = true;
-          handleInactiveScreenshot(idleSeconds, now);
+          handleInactiveScreenshot(
+            idleSeconds,
+            now,
+            Math.floor(idleSeconds / 60),
+          );
         } else {
           handlePeriodicInactiveScreenshot(idleSeconds, now);
         }
@@ -111,7 +141,11 @@ const startActivityMonitoring = () => {
     }
   }, CHECK_INTERVAL_SECONDS * 1000);
 };
-const handleInactiveScreenshot = async (idleSeconds: number, now: number) => {
+const handleInactiveScreenshot = async (
+  idleSeconds: number,
+  now: number,
+  durationToSend: number = 0,
+) => {
   try {
     lastScreenshotTime = now;
     const screenshotPath = await takeScreenshot(currentUserId);
@@ -120,7 +154,8 @@ const handleInactiveScreenshot = async (idleSeconds: number, now: number) => {
         screenshotPath,
         currentUserId,
         "in-active",
-        idleSeconds,
+        durationToSend || Math.floor(idleSeconds / 60),
+        authToken,
       );
     }
   } catch (error) {
@@ -133,9 +168,15 @@ const handlePeriodicInactiveScreenshot = async (
 ) => {
   const timeSinceLastScreenshot = now - lastScreenshotTime;
   const screenshotInterval = INACTIVE_THRESHOLD_SECONDS * 1000;
+
   if (timeSinceLastScreenshot >= screenshotInterval) {
     log.info("User still inactive, taking periodic screenshot...");
-    await handleInactiveScreenshot(idleSeconds, now);
+
+    const incrementalMinutes = Math.floor(INACTIVE_THRESHOLD_SECONDS / 60);
+
+    await handleInactiveScreenshot(idleSeconds, now, incrementalMinutes);
+
+    lastScreenshotTime = now;
   }
 };
 const stopUserActivityTracking = () => {
@@ -155,4 +196,8 @@ const stopUserActivityTracking = () => {
   keyboardPresses = 0;
   log.info("Stopped user activity tracking");
 };
-export { startUserActivityTracking, stopUserActivityTracking };
+const setAuthToken = (token: string) => {
+  authToken = token;
+  log.info("Auth token updated for user activity tracking");
+};
+export { startUserActivityTracking, stopUserActivityTracking, setAuthToken };

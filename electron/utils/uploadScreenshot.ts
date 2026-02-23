@@ -6,7 +6,7 @@ async function uploadScreenshot(
   loggedInUserId: string,
   activity?: string,
   inActiveDuration?: number,
-  token?: string
+  token?: string,
 ) {
   try {
     if (!fs.existsSync(filePath))
@@ -20,6 +20,9 @@ async function uploadScreenshot(
     const API_URL =
       process.env.VITE_BACKEND_URL ||
       "https://darkturquoise-goat-278295.hostingersite.com";
+    console.log(
+      `Uploading screenshot to ${API_URL}/api/upload/image (Token present: ${!!token})`,
+    );
     const res = await axios.post(`${API_URL}/api/upload/image`, formData, {
       headers: {
         ...formData.getHeaders(),
@@ -42,7 +45,7 @@ async function uploadScreenshot(
     console.error(
       "Screenshot upload failed:",
       err.message,
-      err.response?.data || ""
+      err.response?.data || "",
     );
     try {
       if (fs.existsSync(filePath)) {
