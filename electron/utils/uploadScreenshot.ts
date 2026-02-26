@@ -1,48 +1,45 @@
 import fs from "fs";
 import FormData from "form-data";
-import axios from "axios";
+import apiMain from "./apiMain";
+import log from "electron-log";
 async function uploadScreenshot(
   filePath: string,
   loggedInUserId: string,
   activity?: string,
   inActiveDuration?: number,
-  token?: string,
+  _token?: string,
 ) {
   try {
     if (!fs.existsSync(filePath))
-      return console.error("Screenshot file does not exist:", filePath);
+      return log.error("Screenshot file does not exist:", filePath);
     const formData = new FormData();
     formData.append("image", fs.createReadStream(filePath));
     formData.append("userId", loggedInUserId);
     if (activity) formData.append("activity", activity);
     if (inActiveDuration)
       formData.append("inActiveDuration", inActiveDuration.toString());
-    const API_URL =
-      process.env.VITE_BACKEND_URL ||
-      "https://darkturquoise-goat-278295.hostingersite.com";
-    console.log(
-      `Uploading screenshot to ${API_URL}/api/upload/image (Token present: ${!!token})`,
+    log.info(
+      `Uploading screenshot to ${apiMain.defaults.baseURL}/upload/image`,
     );
-    const res = await axios.post(`${API_URL}/api/upload/image`, formData, {
+    const res = await apiMain.post("/upload/image", formData, {
       headers: {
         ...formData.getHeaders(),
-        Authorization: token ? `Bearer ${token}` : undefined,
       },
     });
     if (res.status === 200 || res.status === 201) {
-      console.log("Screenshot uploaded successfully");
+      log.info("Screenshot uploaded successfully");
       try {
         fs.unlinkSync(filePath);
-        console.log("Temporary screenshot file deleted");
+        log.info("Temporary screenshot file deleted");
       } catch (cleanupError) {
-        console.warn("Failed to delete temporary file:", cleanupError);
+        log.warn("Failed to delete temporary file:", cleanupError);
       }
     } else {
-      console.log("Upload response:", res.status, res.data);
+      log.info("Upload response:", res.status, res.data);
     }
     return res;
   } catch (err: any) {
-    console.error(
+    log.error(
       "Screenshot upload failed:",
       err.message,
       err.response?.data || "",

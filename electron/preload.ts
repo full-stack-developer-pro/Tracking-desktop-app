@@ -4,7 +4,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     userId: string,
     trackingSettings: any,
     token?: string,
-    refreshToken?: string
+    refreshToken?: string,
   ) => ipcRenderer.send("login", userId, trackingSettings, token, refreshToken),
   logout: () => ipcRenderer.send("logout"),
   testConnection: () => ipcRenderer.invoke("test-api-connection"),
@@ -61,6 +61,7 @@ contextBridge.exposeInMainWorld("ipcRenderer", {
       "main-process-message",
       "show-close-confirmation",
       "deep-link-login",
+      "session-expired",
     ];
     if (validChannels.includes(channel)) {
       ipcRenderer.on(channel, (_event, ...args) => func(...args));

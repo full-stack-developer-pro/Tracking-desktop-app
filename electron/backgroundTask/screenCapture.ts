@@ -1,5 +1,7 @@
 import captureScreen from "../utils/captueScreen";
 import uploadScreenshot from "../utils/uploadScreenshot";
+import getRandomMinutes from "../utils/getRandomMinutes";
+import log from "electron-log";
 let captureInterval: NodeJS.Timeout | null = null;
 let loggedInUserId: string = "";
 let authToken: string = "";
@@ -9,19 +11,20 @@ const startScreenCapture = async (
   trackingSettings: any,
   token: string
 ) => {
-  console.log("Starting screen capture with settings:", trackingSettings);
+  log.info("Starting screen capture with settings:", trackingSettings);
   loggedInUserId = userId;
   authToken = token;
   currentSettings = trackingSettings;
   if (!currentSettings?.randomScreenshot?.enabled)
-    return console.log("Screenshot capture is disabled in settings");
-  const intervalMinutes = currentSettings.randomScreenshot?.interval || 20;
-  console.log(`Screenshot interval: ${intervalMinutes} minutes`);
+    return log.info("Screenshot capture is disabled in settings");
+  const maxInterval = currentSettings.randomScreenshot?.interval || 20;
+  const randomInterval = getRandomMinutes(maxInterval, 1);
+  log.info(`Random screenshot interval set to ${randomInterval} minutes (max: ${maxInterval})`);
   if (captureInterval) {
     clearTimeout(captureInterval);
     captureInterval = null;
   }
-  scheduleNextCapture(intervalMinutes, userId);
+  scheduleNextCapture(randomInterval, userId);
 };
 const stopScreenCapture = () => {
   if (captureInterval) {
@@ -31,14 +34,26 @@ const stopScreenCapture = () => {
   currentSettings = null;
   loggedInUserId = "";
   authToken = "";
-  console.log("Screen capture stopped");
+  log.info("Screen capture stopped");
+};
+const isBreakTimeActive = (): boolean => {
+  if (!currentSettings?.breakTime?.enabled) return false;
+  const now = new Date();
+  const currentTimeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  return currentTimeStr >= currentSettings.breakTime.startTime && currentTimeStr <= currentSettings.breakTime.endTime;
 };
 const scheduleNextCapture = async (intervalMinutes: number, userId: string) => {
   const intervalMs = intervalMinutes * 60 * 1000;
   captureInterval = setTimeout(async () => {
     try {
       if (currentSettings?.randomScreenshot?.enabled && loggedInUserId) {
-        console.log("Taking scheduled screenshot...");
+        if (isBreakTimeActive()) {
+          log.info("Break time active - skipping random screenshot, rescheduling...");
+          if (currentSettings && loggedInUserId)
+            scheduleNextCapture(intervalMinutes, userId);
+          return;
+        }
+        log.info("Taking scheduled random screenshot...");
         const screenshotPath = await captureScreen(userId);
         if (screenshotPath)
           await uploadScreenshot(
@@ -52,7 +67,7 @@ const scheduleNextCapture = async (intervalMinutes: number, userId: string) => {
       if (currentSettings && loggedInUserId)
         scheduleNextCapture(intervalMinutes, userId);
     } catch (error) {
-      console.error("Error in scheduled capture:", error);
+      log.error("Error in scheduled capture:", error);
       if (currentSettings && loggedInUserId) {
         scheduleNextCapture(intervalMinutes, userId);
       }
@@ -61,6 +76,6 @@ const scheduleNextCapture = async (intervalMinutes: number, userId: string) => {
 };
 export const setAuthToken = (token: string) => {
   authToken = token;
-  console.log("Auth token updated for screen capture");
+  log.info("Auth token updated for screen capture");
 };
 export { startScreenCapture, stopScreenCapture, currentSettings };

@@ -20,7 +20,8 @@ import {
   startUserActivityTracking,
   stopUserActivityTracking,
 } from "./backgroundTask/userActivity";
-import { autoUpdater } from "electron-updater";
+import { autoUpdater as _autoUpdater } from "electron-updater";
+const autoUpdater = _autoUpdater as any;
 import log from "electron-log";
 import apiMain, {
   setAuthToken as setApiToken,
@@ -127,7 +128,7 @@ autoUpdater.on("update-not-available", (info: any) => {
 autoUpdater.on("error", (err: Error) => {
   log.error("Error in auto-updater:", err.message);
 });
-autoUpdater.on("download-progress", (progressObj) => {
+autoUpdater.on("download-progress", (progressObj: any) => {
   let msg = `Download speed: ${progressObj.bytesPerSecond} B/s`;
   msg += ` - Downloaded ${progressObj.percent.toFixed(2)}%`;
   msg += ` (${progressObj.transferred}/${progressObj.total})`;
@@ -135,10 +136,12 @@ autoUpdater.on("download-progress", (progressObj) => {
   win?.webContents.send("download-progress", progressObj);
 });
 autoUpdater.on("update-downloaded", (info: any) => {
-  log.info(`Update downloaded. Version: ${info.version}`);
+  log.info(
+    `Update downloaded. Version: ${info.version}. Installing and restarting...`,
+  );
   win?.webContents.send("update-downloaded", info);
   setTimeout(() => {
-    autoUpdater.quitAndInstall();
+    autoUpdater.quitAndInstall(true, true);
   }, 1000);
 });
 export const MAIN_DIST = path.join(
@@ -305,6 +308,16 @@ async function handleCheckOut() {
         "Error Response:",
         JSON.stringify(error.response.data, null, 2),
       );
+      const msg = error.response.data?.message || "";
+      if (
+        error.response.status === 400 &&
+        msg.toLowerCase().includes("already checked out")
+      ) {
+        console.log(
+          "User already checked out from website, treating as success.",
+        );
+        return true;
+      }
     }
     return false;
   }
@@ -337,8 +350,13 @@ ipcMain.on(
 ipcMain.handle("confirm-checkout", async () => {
   const success = await handleCheckOut();
   if (success) {
+    stopScreenCapture();
+    stopUserActivityTracking();
+    currentUserId = null;
     isQuitting = true;
-    app.quit();
+    setTimeout(() => {
+      app.quit();
+    }, 500);
     return { success: true };
   } else {
     return { success: false, message: "Checkout API failed. Check internet?" };
