@@ -4,6 +4,9 @@ import uploadScreenshot from "../utils/uploadScreenshot";
 import { uIOhook } from "uiohook-napi";
 import apiMain from "../utils/apiMain";
 import log from "electron-log";
+import { io, Socket } from "socket.io-client";
+
+let socket: Socket | null = null;
 let activityInterval: NodeJS.Timeout | null = null;
 let syncInterval: NodeJS.Timeout | null = null;
 let currentUserId: string = "";
@@ -14,12 +17,54 @@ const SYNC_INTERVAL_SECONDS = 60;
 let INACTIVE_THRESHOLD_SECONDS = 300;
 let lastScreenshotTime = 0;
 let userInactive = false;
+let userOnBreak = false;
 let mouseClicks = 0;
 let keyboardPresses = 0;
+
+const setupSocketIO = (socketToken: string) => {
+  try {
+    let baseURL = "http://localhost:5000";
+    if (apiMain.defaults.baseURL) {
+      baseURL = apiMain.defaults.baseURL.replace("/api", "");
+    }
+    log.info(`Initializing Socket.IO to ${baseURL}`);
+    socket = io(baseURL, {
+      auth: { socketToken },
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+    });
+
+    socket.on("connect", () => {
+      log.info(`Socket connected for Desktop Tracking! ID: ${socket?.id}`);
+    });
+
+    socket.on("connect_error", (err) => {
+      log.error("Socket tracking connection error:", err.message);
+    });
+
+    socket.on("BREAK_STARTED", () => {
+      log.info("Socket event: BREAK_STARTED -> Immediately Pausing tracking.");
+      userOnBreak = true;
+      userInactive = false;
+      lastScreenshotTime = 0;
+    });
+
+    socket.on("BREAK_ENDED", () => {
+      log.info("Socket event: BREAK_ENDED -> Immediately Resuming tracking.");
+      userOnBreak = false;
+      userInactive = false;
+      lastScreenshotTime = 0;
+    });
+  } catch (err) {
+    log.error("Failed to setup socket", err);
+  }
+};
+
 const startUserActivityTracking = async (
   userId: string,
   trackingSettings: any,
   token?: string,
+  socketToken?: string,
 ) => {
   currentUserId = userId;
   if (token) authToken = token;
@@ -36,6 +81,18 @@ const startUserActivityTracking = async (
   log.info(`Idle threshold set to ${idleThresholdMinutes} minutes`);
   mouseClicks = 0;
   keyboardPresses = 0;
+
+  if (socket) {
+    socket.disconnect();
+    socket = null;
+  }
+
+  if (socketToken) {
+    setupSocketIO(socketToken);
+  } else {
+    log.warn("No socketToken provided; real-time break events will not work.");
+  }
+
   setupInputHook();
   startActivityMonitoring();
   startSyncingActivity();
@@ -43,11 +100,11 @@ const startUserActivityTracking = async (
 const setupInputHook = () => {
   try {
     uIOhook.on("mousedown", () => {
-      if (currentSettings?.trackMouseClicks === false) return;
+      if (currentSettings?.trackMouseClicks === false || userOnBreak) return;
       if (!userInactive) mouseClicks++;
     });
     uIOhook.on("keydown", () => {
-      if (currentSettings?.trackKeyboard === false) return;
+      if (currentSettings?.trackKeyboard === false || userOnBreak) return;
       if (!userInactive) keyboardPresses++;
     });
     uIOhook.start();
@@ -100,6 +157,22 @@ const startSyncingActivity = () => {
 const startActivityMonitoring = () => {
   activityInterval = setInterval(async () => {
     try {
+      try {
+        const breakRes = await apiMain.get("/breaks/status");
+        if (breakRes.data?.success && breakRes.data?.isOnBreak) {
+          log.info("User is on an active break -> Pausing tracking.");
+          userOnBreak = true;
+          userInactive = false;
+          lastScreenshotTime = 0;
+          return;
+        } else {
+          userOnBreak = false;
+        }
+      } catch (err) {
+        log.error("Failed to fetch break status:", err);
+        userOnBreak = false;
+      }
+
       const idleSeconds = powerMonitor.getSystemIdleTime();
       const now = new Date();
 
@@ -180,6 +253,10 @@ const handlePeriodicInactiveScreenshot = async (
   }
 };
 const stopUserActivityTracking = () => {
+  if (socket) {
+    socket.disconnect();
+    socket = null;
+  }
   if (activityInterval) {
     clearInterval(activityInterval);
     activityInterval = null;
@@ -190,6 +267,7 @@ const stopUserActivityTracking = () => {
   }
   stopInputHook();
   userInactive = false;
+  userOnBreak = false;
   lastScreenshotTime = 0;
   currentSettings = null;
   mouseClicks = 0;

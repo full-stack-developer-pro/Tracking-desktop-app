@@ -91,7 +91,8 @@ export default function Login() {
     };
     if (window.electronAPI && window.electronAPI.onDeepLinkLogin) {
       window.electronAPI.onDeepLinkLogin(async (data: any) => {
-        const { token, userId, companyId, role } = data;
+        const { token, userId, companyId, role, socketToken, refreshToken } =
+          data;
         toast.info("Verifying session...");
         try {
           const API_URL = `${
@@ -122,7 +123,13 @@ export default function Login() {
             }
           }
           if (window.electronAPI) {
-            window.electronAPI.login(userId, trackingSettings, token);
+            window.electronAPI.login(
+              userId,
+              trackingSettings,
+              token,
+              refreshToken,
+              socketToken,
+            );
             if (!trackingSettings) {
               toast.warn(
                 "Could not fetch company settings. Tracking might be limited.",

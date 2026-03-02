@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 
 interface Window {
   ipcRenderer: any;
@@ -6,7 +7,8 @@ interface Window {
       userId: string,
       trackingSettings: any,
       token?: string,
-      refreshToken?: string
+      refreshToken?: string,
+      socketToken?: string,
     ) => void;
     logout: () => void;
     testConnection: () => Promise<any>;

@@ -5,7 +5,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
     trackingSettings: any,
     token?: string,
     refreshToken?: string,
-  ) => ipcRenderer.send("login", userId, trackingSettings, token, refreshToken),
+    socketToken?: string,
+  ) =>
+    ipcRenderer.send(
+      "login",
+      userId,
+      trackingSettings,
+      token,
+      refreshToken,
+      socketToken,
+    ),
   logout: () => ipcRenderer.send("logout"),
   testConnection: () => ipcRenderer.invoke("test-api-connection"),
   getCookies: () => ipcRenderer.invoke("get-cookies"),

@@ -324,7 +324,14 @@ async function handleCheckOut() {
 }
 ipcMain.on(
   "login",
-  async (_event, userId, trackingSettings, token, refreshToken) => {
+  async (
+    _event,
+    userId,
+    trackingSettings,
+    token,
+    refreshToken,
+    socketToken,
+  ) => {
     try {
       if (!trackingSettings)
         return console.error("No tracking settings provided");
@@ -339,7 +346,7 @@ ipcMain.on(
       if (!trackingSettings.isActive)
         return console.log("Tracking is inactive for this user/company");
       startScreenCapture(userId, trackingSettings, token);
-      startUserActivityTracking(userId, trackingSettings, token);
+      startUserActivityTracking(userId, trackingSettings, token, socketToken);
       await handleCheckIn(userId);
       console.log("Tracking services started successfully");
     } catch (error) {
@@ -445,6 +452,8 @@ function handleDeepLink(urlStr: string) {
     const userId = params.get("userId");
     const companyId = params.get("companyId");
     const role = params.get("role");
+    const socketToken = params.get("socketToken");
+    const refreshToken = params.get("refreshToken");
     if (token && userId) {
       if (win && win.webContents) {
         win.webContents.send("deep-link-login", {
@@ -452,6 +461,8 @@ function handleDeepLink(urlStr: string) {
           userId,
           companyId,
           role,
+          socketToken,
+          refreshToken,
         });
         if (win.isMinimized()) win.restore();
         win.focus();
