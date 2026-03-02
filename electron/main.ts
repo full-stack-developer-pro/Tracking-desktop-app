@@ -393,14 +393,11 @@ ipcMain.on("logout", async () => {
 ipcMain.on("update-token", (_event, token) => {
   setApiToken(token);
   setScreenCaptureToken(token);
-  // Also update activity tracking token
   import("./backgroundTask/userActivity").then((m) => m.setAuthToken(token));
 });
 ipcMain.handle("test-api-connection", async () => {
   try {
-    const API_URL =
-      process.env.VITE_BACKEND_URL ||
-      "https://darkturquoise-goat-278295.hostingersite.com";
+    const API_URL = process.env.VITE_BACKEND_URL || "http://localhost:5000";
     const response = await axios.get(`${API_URL}/api/auth/test`, {
       timeout: 5000,
     });

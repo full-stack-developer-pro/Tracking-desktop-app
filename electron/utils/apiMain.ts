@@ -1,9 +1,7 @@
 import axios from "axios";
 import dotenv from "dotenv";
 dotenv.config();
-const API_URL =
-  process.env.VITE_BACKEND_URL ||
-  "https://darkturquoise-goat-278295.hostingersite.com";
+const API_URL = process.env.VITE_BACKEND_URL || "http://localhost:5000";
 const apiMain = axios.create({
   baseURL: `${API_URL}/api`,
   withCredentials: true,

@@ -96,8 +96,7 @@ export default function Login() {
         toast.info("Verifying session...");
         try {
           const API_URL = `${
-            import.meta.env.VITE_BACKEND_URL ||
-            "https://darkturquoise-goat-278295.hostingersite.com/"
+            import.meta.env.VITE_BACKEND_URL || "http://localhost:5000"
           }/api`;
           const verifyRes = await fetch(`${API_URL}/auth/tokens`, {
             headers: { Authorization: `Bearer ${token}` },
@@ -139,8 +138,13 @@ export default function Login() {
             } else {
               toast.success("Desktop tracking started!");
             }
+            if (token) {
+              localStorage.setItem("token", token);
+            }
+            if (refreshToken) {
+              localStorage.setItem("refreshToken", refreshToken);
+            }
           }
-          localStorage.setItem("token", token);
           localStorage.setItem("userId", userId);
           localStorage.setItem("role", role);
           localStorage.setItem("companyId", companyId || "");

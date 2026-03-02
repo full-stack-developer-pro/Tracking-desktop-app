@@ -24,7 +24,7 @@ const App = () => {
               userId,
               settings,
               token,
-              refreshToken
+              refreshToken,
             );
             console.log("Auto-login initiated on startup");
           }
@@ -39,11 +39,14 @@ const App = () => {
       (data: { date: string }) => {
         setCheckoutDate(data.date);
         setShowCheckoutModal(true);
-      }
+      },
     );
     window.ipcRenderer.on("session-expired", () => {
       console.log("Session expired - logging out...");
       toast.error("Session expired. Please login again.");
+      if (window.electronAPI?.logout) {
+        window.electronAPI.logout();
+      }
       localStorage.clear();
       window.location.href = "/";
     });

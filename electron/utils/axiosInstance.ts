@@ -1,7 +1,6 @@
 import axios from "axios";
 const API_URL: string = `${
-  import.meta.env.VITE_BACKEND_URL ||
-  "https://darkturquoise-goat-278295.hostingersite.com/"
+  import.meta.env.VITE_BACKEND_URL || "http://localhost:5000"
 }/api`;
 const api = axios.create({
   baseURL: API_URL,
@@ -16,14 +15,14 @@ api.interceptors.request.use(
     console.log(
       `API Request: ${config.method?.toUpperCase()} ${config.baseURL}${
         config.url
-      }`
+      }`,
     );
     return config;
   },
   (error) => {
     console.error("API Request Error:", error);
     return Promise.reject(error);
-  }
+  },
 );
 api.interceptors.response.use(
   (response) => {
@@ -41,7 +40,7 @@ api.interceptors.response.use(
           const { data } = await axios.post(
             `${API_URL}/auth/refresh-token`,
             { refreshToken },
-            { withCredentials: true }
+            { withCredentials: true },
           );
           const { accessToken, refreshToken: newRefreshToken } =
             data?.data || data;
@@ -52,9 +51,8 @@ api.interceptors.response.use(
           if (window.electronAPI?.updateToken) {
             window.electronAPI.updateToken(accessToken);
           }
-          api.defaults.headers.common[
-            "Authorization"
-          ] = `Bearer ${accessToken}`;
+          api.defaults.headers.common["Authorization"] =
+            `Bearer ${accessToken}`;
           originalRequest.headers["Authorization"] = `Bearer ${accessToken}`;
           return api(originalRequest);
         }
@@ -70,6 +68,6 @@ api.interceptors.response.use(
       message: error.message,
     });
     return Promise.reject(error);
-  }
+  },
 );
 export default api;

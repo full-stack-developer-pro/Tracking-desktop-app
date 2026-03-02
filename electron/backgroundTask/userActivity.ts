@@ -20,11 +20,30 @@ let userInactive = false;
 let userOnBreak = false;
 let mouseClicks = 0;
 let keyboardPresses = 0;
+let isSuspended = false;
+
+powerMonitor.on("suspend", () => {
+  log.info("System suspended (sleep mode). Pausing tracking interval.");
+  isSuspended = true;
+  if (activityInterval) {
+    clearInterval(activityInterval);
+    activityInterval = null;
+  }
+});
+
+powerMonitor.on("resume", () => {
+  log.info("System resumed. Restarting tracking interval.");
+  isSuspended = false;
+  if (currentUserId && authToken) {
+    startActivityMonitoring();
+  }
+});
 
 const setupSocketIO = (socketToken: string) => {
   try {
-    let baseURL = "http://localhost:5000";
+    let baseURL = process.env.VITE_BACKEND_URL || "http://localhost:5000";
     if (apiMain.defaults.baseURL) {
+      // apiMain is configured remotely. We strip "/api" to get the pure socket domain
       baseURL = apiMain.defaults.baseURL.replace("/api", "");
     }
     log.info(`Initializing Socket.IO to ${baseURL}`);
@@ -34,8 +53,23 @@ const setupSocketIO = (socketToken: string) => {
       reconnectionAttempts: Infinity,
     });
 
-    socket.on("connect", () => {
+    socket.on("connect", async () => {
       log.info(`Socket connected for Desktop Tracking! ID: ${socket?.id}`);
+      try {
+        const breakRes = await apiMain.get("/breaks/status");
+        if (breakRes.data?.success) {
+          if (breakRes.data.isOnBreak) {
+            log.info("Socket reconnected: User is ON break. Pausing.");
+            userOnBreak = true;
+            userInactive = false;
+          } else {
+            log.info("Socket reconnected: User is NOT on break.");
+            userOnBreak = false;
+          }
+        }
+      } catch (err) {
+        log.error("Failed to sync break status on reconnect", err);
+      }
     });
 
     socket.on("connect_error", (err) => {
@@ -54,6 +88,24 @@ const setupSocketIO = (socketToken: string) => {
       userOnBreak = false;
       userInactive = false;
       lastScreenshotTime = 0;
+    });
+
+    socket.on("CHECKED_OUT", () => {
+      log.info(
+        "Socket event: CHECKED_OUT -> User checked out from web. Stopping tracking.",
+      );
+      try {
+        const { BrowserWindow } = require("electron");
+        stopUserActivityTracking();
+        const { stopScreenCapture } = require("./screenCapture");
+        stopScreenCapture();
+        const windows = BrowserWindow.getAllWindows();
+        if (windows.length > 0) {
+          windows[0].webContents.send("session-expired");
+        }
+      } catch (err) {
+        log.error("Failed to handle CHECKED_OUT event cleanly:", err);
+      }
     });
   } catch (err) {
     log.error("Failed to setup socket", err);
@@ -196,11 +248,11 @@ const startActivityMonitoring = () => {
           userInactive = true;
           handleInactiveScreenshot(
             idleSeconds,
-            now,
+            now.getTime(),
             Math.floor(idleSeconds / 60),
           );
         } else {
-          handlePeriodicInactiveScreenshot(idleSeconds, now);
+          handlePeriodicInactiveScreenshot(idleSeconds, now.getTime());
         }
       } else {
         if (userInactive) {
@@ -252,7 +304,7 @@ const handlePeriodicInactiveScreenshot = async (
     lastScreenshotTime = now;
   }
 };
-const stopUserActivityTracking = () => {
+function stopUserActivityTracking() {
   if (socket) {
     socket.disconnect();
     socket = null;
@@ -273,9 +325,11 @@ const stopUserActivityTracking = () => {
   mouseClicks = 0;
   keyboardPresses = 0;
   log.info("Stopped user activity tracking");
-};
+}
+
 const setAuthToken = (token: string) => {
   authToken = token;
   log.info("Auth token updated for user activity tracking");
 };
+
 export { startUserActivityTracking, stopUserActivityTracking, setAuthToken };

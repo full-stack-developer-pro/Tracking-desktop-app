@@ -11,6 +11,7 @@ interface Window {
       socketToken?: string,
     ) => void;
     logout: () => void;
+    updateToken: (token: string) => void;
     testConnection: () => Promise<any>;
     getCookies: () => Promise<any>;
     openBrowserAuth: (url: string) => void;
