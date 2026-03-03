@@ -41,6 +41,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("update-downloaded", (_event, data) => callback(data)),
   removeUpdateDownloadedListener: () =>
     ipcRenderer.removeAllListeners("update-downloaded"),
+  onTrackingStoppedByAdmin: (callback: () => void) =>
+    ipcRenderer.on("tracking-stopped-by-admin", () => callback()),
+  removeTrackingStoppedListener: () =>
+    ipcRenderer.removeAllListeners("tracking-stopped-by-admin"),
 });
 contextBridge.exposeInMainWorld("ipcRenderer", {
   send: (channel: string, ...args: any[]) => {

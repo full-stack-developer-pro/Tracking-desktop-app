@@ -107,6 +107,42 @@ const setupSocketIO = (socketToken: string) => {
         log.error("Failed to handle CHECKED_OUT event cleanly:", err);
       }
     });
+
+    socket.on("TRACKING_SETTINGS_UPDATED", (newSettings: any) => {
+      log.info(
+        "Socket event: TRACKING_SETTINGS_UPDATED -> Applying live settings to memory!",
+      );
+
+      const wasActive = currentSettings?.isActive !== false;
+      currentSettings = newSettings;
+
+      if (newSettings?.idleDetection?.idleThreshold) {
+        INACTIVE_THRESHOLD_SECONDS =
+          newSettings.idleDetection.idleThreshold * 60;
+        log.info(
+          `Idle threshold synced to ${newSettings.idleDetection.idleThreshold} minutes.`,
+        );
+      }
+
+      const { updateScreenCaptureSettings } = require("./screenCapture");
+      updateScreenCaptureSettings(newSettings);
+
+      if (wasActive && newSettings?.isActive === false) {
+        log.info(
+          "Admin disabled tracking globally. Stopping background processes.",
+        );
+        stopUserActivityTracking();
+        const { stopScreenCapture } = require("./screenCapture");
+        stopScreenCapture();
+        try {
+          const { BrowserWindow } = require("electron");
+          const windows = BrowserWindow.getAllWindows();
+          if (windows.length > 0) {
+            windows[0].webContents.send("tracking-stopped-by-admin");
+          }
+        } catch (e) {}
+      }
+    });
   } catch (err) {
     log.error("Failed to setup socket", err);
   }

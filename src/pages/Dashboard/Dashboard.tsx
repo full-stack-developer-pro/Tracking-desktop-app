@@ -67,6 +67,19 @@ export default function Dashboard() {
       }
     };
     checkTracking();
+
+    if (window.electronAPI?.onTrackingStoppedByAdmin) {
+      window.electronAPI.onTrackingStoppedByAdmin(() => {
+        setIsTracking(false);
+        toast.error("Your tracking has been stopped by the company.");
+      });
+    }
+
+    return () => {
+      if (window.electronAPI?.removeTrackingStoppedListener) {
+        window.electronAPI.removeTrackingStoppedListener();
+      }
+    };
   }, []);
   const handleLogout = async () => {
     setIsLoggingOut(true);

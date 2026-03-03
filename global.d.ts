@@ -11,6 +11,8 @@ interface IElectronAPI {
   getEnv: (key: string) => Promise<string | null>;
   captureScreen: () => Promise<any>;
   updateToken: (token: string) => void;
+  onTrackingStoppedByAdmin: (callback: () => void) => void;
+  removeTrackingStoppedListener: () => void;
 }
 
 interface IIpcRenderer {

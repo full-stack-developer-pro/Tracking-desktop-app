@@ -9,7 +9,7 @@ let currentSettings: any = null;
 const startScreenCapture = async (
   userId: string,
   trackingSettings: any,
-  token: string
+  token: string,
 ) => {
   log.info("Starting screen capture with settings:", trackingSettings);
   loggedInUserId = userId;
@@ -19,7 +19,9 @@ const startScreenCapture = async (
     return log.info("Screenshot capture is disabled in settings");
   const maxInterval = currentSettings.randomScreenshot?.interval || 20;
   const randomInterval = getRandomMinutes(maxInterval, 1);
-  log.info(`Random screenshot interval set to ${randomInterval} minutes (max: ${maxInterval})`);
+  log.info(
+    `Random screenshot interval set to ${randomInterval} minutes (max: ${maxInterval})`,
+  );
   if (captureInterval) {
     clearTimeout(captureInterval);
     captureInterval = null;
@@ -40,7 +42,10 @@ const isBreakTimeActive = (): boolean => {
   if (!currentSettings?.breakTime?.enabled) return false;
   const now = new Date();
   const currentTimeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-  return currentTimeStr >= currentSettings.breakTime.startTime && currentTimeStr <= currentSettings.breakTime.endTime;
+  return (
+    currentTimeStr >= currentSettings.breakTime.startTime &&
+    currentTimeStr <= currentSettings.breakTime.endTime
+  );
 };
 const scheduleNextCapture = async (intervalMinutes: number, userId: string) => {
   const intervalMs = intervalMinutes * 60 * 1000;
@@ -48,7 +53,9 @@ const scheduleNextCapture = async (intervalMinutes: number, userId: string) => {
     try {
       if (currentSettings?.randomScreenshot?.enabled && loggedInUserId) {
         if (isBreakTimeActive()) {
-          log.info("Break time active - skipping random screenshot, rescheduling...");
+          log.info(
+            "Break time active - skipping random screenshot, rescheduling...",
+          );
           if (currentSettings && loggedInUserId)
             scheduleNextCapture(intervalMinutes, userId);
           return;
@@ -61,7 +68,7 @@ const scheduleNextCapture = async (intervalMinutes: number, userId: string) => {
             userId,
             "active",
             0,
-            authToken
+            authToken,
           );
       }
       if (currentSettings && loggedInUserId)
@@ -78,4 +85,13 @@ export const setAuthToken = (token: string) => {
   authToken = token;
   log.info("Auth token updated for screen capture");
 };
-export { startScreenCapture, stopScreenCapture, currentSettings };
+const updateScreenCaptureSettings = (newSettings: any) => {
+  currentSettings = newSettings;
+  log.info("Screen capture settings dynamically updated from Socket.io!");
+};
+export {
+  startScreenCapture,
+  stopScreenCapture,
+  currentSettings,
+  updateScreenCaptureSettings,
+};
