@@ -6,6 +6,7 @@ let captureInterval: NodeJS.Timeout | null = null;
 let loggedInUserId: string = "";
 let authToken: string = "";
 let currentSettings: any = null;
+
 const startScreenCapture = async (
   userId: string,
   trackingSettings: any,
@@ -28,6 +29,7 @@ const startScreenCapture = async (
   }
   scheduleNextCapture(randomInterval, userId);
 };
+
 const stopScreenCapture = () => {
   if (captureInterval) {
     clearTimeout(captureInterval);
@@ -38,28 +40,12 @@ const stopScreenCapture = () => {
   authToken = "";
   log.info("Screen capture stopped");
 };
-const isBreakTimeActive = (): boolean => {
-  if (!currentSettings?.breakTime?.enabled) return false;
-  const now = new Date();
-  const currentTimeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-  return (
-    currentTimeStr >= currentSettings.breakTime.startTime &&
-    currentTimeStr <= currentSettings.breakTime.endTime
-  );
-};
+
 const scheduleNextCapture = async (intervalMinutes: number, userId: string) => {
   const intervalMs = intervalMinutes * 60 * 1000;
   captureInterval = setTimeout(async () => {
     try {
       if (currentSettings?.randomScreenshot?.enabled && loggedInUserId) {
-        if (isBreakTimeActive()) {
-          log.info(
-            "Break time active - skipping random screenshot, rescheduling...",
-          );
-          if (currentSettings && loggedInUserId)
-            scheduleNextCapture(intervalMinutes, userId);
-          return;
-        }
         log.info("Taking scheduled random screenshot...");
         const screenshotPath = await captureScreen(userId);
         if (screenshotPath)
@@ -81,14 +67,21 @@ const scheduleNextCapture = async (intervalMinutes: number, userId: string) => {
     }
   }, intervalMs);
 };
+
 export const setAuthToken = (token: string) => {
   authToken = token;
   log.info("Auth token updated for screen capture");
 };
+
 const updateScreenCaptureSettings = (newSettings: any) => {
   currentSettings = newSettings;
   log.info("Screen capture settings dynamically updated from Socket.io!");
+
+  if (loggedInUserId && authToken) {
+    startScreenCapture(loggedInUserId, currentSettings, authToken);
+  }
 };
+
 export {
   startScreenCapture,
   stopScreenCapture,

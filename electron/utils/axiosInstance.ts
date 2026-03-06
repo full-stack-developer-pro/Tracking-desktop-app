@@ -1,11 +1,14 @@
 import axios from "axios";
+
 const API_URL: string = `${
   import.meta.env.VITE_BACKEND_URL || "http://localhost:5000"
 }/api`;
+
 const api = axios.create({
   baseURL: API_URL,
   withCredentials: true,
 });
+
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("token");
@@ -24,6 +27,7 @@ api.interceptors.request.use(
     return Promise.reject(error);
   },
 );
+
 api.interceptors.response.use(
   (response) => {
     console.log(`API Response: ${response.status} ${response.config.url}`);
@@ -70,4 +74,5 @@ api.interceptors.response.use(
     return Promise.reject(error);
   },
 );
+
 export default api;

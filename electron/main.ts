@@ -112,22 +112,28 @@ function createWindow() {
     }
   }
 }
+
 autoUpdater.logger = log;
 (autoUpdater.logger as any).transports.file.level = "info";
 autoUpdater.autoDownload = true;
 autoUpdater.autoInstallOnAppQuit = true;
+
 autoUpdater.on("checking-for-update", () => {
   log.info("Checking for update...");
 });
+
 autoUpdater.on("update-available", (info: any) => {
   log.info(`Update available! Version: ${info.version}`);
 });
+
 autoUpdater.on("update-not-available", (info: any) => {
   log.info(`Update not available. Current version: ${info.version}`);
 });
+
 autoUpdater.on("error", (err: Error) => {
   log.error("Error in auto-updater:", err.message);
 });
+
 autoUpdater.on("download-progress", (progressObj: any) => {
   let msg = `Download speed: ${progressObj.bytesPerSecond} B/s`;
   msg += ` - Downloaded ${progressObj.percent.toFixed(2)}%`;
@@ -135,6 +141,7 @@ autoUpdater.on("download-progress", (progressObj: any) => {
   log.info(msg);
   win?.webContents.send("download-progress", progressObj);
 });
+
 autoUpdater.on("update-downloaded", (info: any) => {
   log.info(
     `Update downloaded. Version: ${info.version}. Installing and restarting...`,
@@ -144,6 +151,7 @@ autoUpdater.on("update-downloaded", (info: any) => {
     autoUpdater.quitAndInstall(true, true);
   }, 1000);
 });
+
 export const MAIN_DIST = path.join(
   process.env.APP_ROOT as string,
   "dist-electron",
@@ -158,12 +166,15 @@ if (process.defaultApp) {
 } else {
   app.setAsDefaultProtocolClient(PROTOCOL_SCHEME);
 }
+
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow();
   }
 });
+
 const gotTheLock = app.requestSingleInstanceLock();
+
 if (!gotTheLock) {
   app.quit();
 } else {
@@ -276,6 +287,7 @@ if (!gotTheLock) {
     });
   });
 }
+
 async function handleCheckIn(userId: string) {
   try {
     console.log("Attempting Check-in for user:", userId);
@@ -291,6 +303,7 @@ async function handleCheckIn(userId: string) {
     }
   }
 }
+
 async function handleCheckOut() {
   if (!currentUserId) {
     console.log("No user logged in, skipping checkout.");
@@ -322,6 +335,7 @@ async function handleCheckOut() {
     return false;
   }
 }
+
 ipcMain.on(
   "login",
   async (
@@ -354,6 +368,7 @@ ipcMain.on(
     }
   },
 );
+
 ipcMain.handle("confirm-checkout", async () => {
   const success = await handleCheckOut();
   if (success) {
@@ -369,9 +384,11 @@ ipcMain.handle("confirm-checkout", async () => {
     return { success: false, message: "Checkout API failed. Check internet?" };
   }
 });
+
 ipcMain.on("cancel-close", () => {
   console.log("user cancelled checkout/close");
 });
+
 ipcMain.on("logout", async () => {
   log.info(
     `[main] Logout requested. Clearing session for user: ${currentUserId}`,
@@ -390,11 +407,13 @@ ipcMain.on("logout", async () => {
   setApiToken("");
   setScreenCaptureToken("");
 });
+
 ipcMain.on("update-token", (_event, token) => {
   setApiToken(token);
   setScreenCaptureToken(token);
   import("./backgroundTask/userActivity").then((m) => m.setAuthToken(token));
 });
+
 ipcMain.handle("test-api-connection", async () => {
   try {
     const API_URL = process.env.VITE_BACKEND_URL || "http://localhost:5000";
@@ -410,6 +429,7 @@ ipcMain.handle("test-api-connection", async () => {
     };
   }
 });
+
 ipcMain.handle("get-cookies", async () => {
   try {
     const ses = session.fromPartition("persist:tracking-session");
@@ -425,6 +445,7 @@ ipcMain.handle("get-cookies", async () => {
     return [];
   }
 });
+
 ipcMain.on("open-browser-auth", (_event, url) => {
   if (url && (url.startsWith("http://") || url.startsWith("https://"))) {
     shell.openExternal(url);
@@ -436,10 +457,12 @@ ipcMain.on("open-browser-auth", (_event, url) => {
     log.error(`Failed to open external URL: ${url}`);
   }
 });
+
 app.on("open-url", (event, url) => {
   event.preventDefault();
   handleDeepLink(url);
 });
+
 function handleDeepLink(urlStr: string) {
   try {
     if (!urlStr.startsWith(PROTOCOL_SCHEME + "://")) return;
@@ -469,6 +492,7 @@ function handleDeepLink(urlStr: string) {
     console.error("Error parsing deep link:", error);
   }
 }
+
 app.on("window-all-closed", () => {
   stopScreenCapture();
   stopUserActivityTracking();

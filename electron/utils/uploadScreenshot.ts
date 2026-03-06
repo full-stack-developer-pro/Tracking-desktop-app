@@ -2,6 +2,7 @@ import fs from "fs";
 import FormData from "form-data";
 import apiMain from "./apiMain";
 import log from "electron-log";
+
 async function uploadScreenshot(
   filePath: string,
   loggedInUserId: string,
@@ -51,4 +52,5 @@ async function uploadScreenshot(
     } catch (cleanupError) {}
   }
 }
+
 export default uploadScreenshot;

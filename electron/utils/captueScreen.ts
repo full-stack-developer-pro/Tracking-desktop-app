@@ -2,6 +2,7 @@ import { desktopCapturer } from "electron";
 import path from "path";
 import fs from "fs";
 import os from "os";
+
 async function captureScreen(userId: string): Promise<string | null> {
   try {
     const sources = await desktopCapturer.getSources({
@@ -26,4 +27,5 @@ async function captureScreen(userId: string): Promise<string | null> {
     return null;
   }
 }
+
 export default captureScreen;

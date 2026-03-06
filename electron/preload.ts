@@ -1,4 +1,5 @@
 import { ipcRenderer, contextBridge } from "electron";
+
 contextBridge.exposeInMainWorld("electronAPI", {
   login: (
     userId: string,
@@ -45,7 +46,20 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("tracking-stopped-by-admin", () => callback()),
   removeTrackingStoppedListener: () =>
     ipcRenderer.removeAllListeners("tracking-stopped-by-admin"),
+  onSettingsSyncedLive: (callback: (data: any) => void) =>
+    ipcRenderer.on("settings-synced-live", (_event, data) => callback(data)),
+  removeSettingsSyncedListener: () =>
+    ipcRenderer.removeAllListeners("settings-synced-live"),
+  onUserBreakStarted: (callback: () => void) =>
+    ipcRenderer.on("user-break-started", () => callback()),
+  removeUserBreakStartedListener: () =>
+    ipcRenderer.removeAllListeners("user-break-started"),
+  onUserBreakEnded: (callback: () => void) =>
+    ipcRenderer.on("user-break-ended", () => callback()),
+  removeUserBreakEndedListener: () =>
+    ipcRenderer.removeAllListeners("user-break-ended"),
 });
+
 contextBridge.exposeInMainWorld("ipcRenderer", {
   send: (channel: string, ...args: any[]) => {
     const validChannels = [

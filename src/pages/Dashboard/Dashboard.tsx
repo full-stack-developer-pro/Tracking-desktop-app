@@ -48,6 +48,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [user, setUser] = useState<any>(null);
   const [isTracking, setIsTracking] = useState(false);
+  const [userOnBreak, setUserOnBreak] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   useEffect(() => {
     const userString = localStorage.getItem("user");
@@ -75,9 +76,37 @@ export default function Dashboard() {
       });
     }
 
+    if (window.electronAPI?.onSettingsSyncedLive) {
+      window.electronAPI.onSettingsSyncedLive((newSettings: any) => {
+        localStorage.setItem("trackingSettings", JSON.stringify(newSettings));
+        setIsTracking(newSettings?.isActive ?? false);
+      });
+    }
+
+    if (window.electronAPI?.onUserBreakStarted) {
+      window.electronAPI.onUserBreakStarted(() => {
+        setUserOnBreak(true);
+      });
+    }
+
+    if (window.electronAPI?.onUserBreakEnded) {
+      window.electronAPI.onUserBreakEnded(() => {
+        setUserOnBreak(false);
+      });
+    }
+
     return () => {
       if (window.electronAPI?.removeTrackingStoppedListener) {
         window.electronAPI.removeTrackingStoppedListener();
+      }
+      if (window.electronAPI?.removeSettingsSyncedListener) {
+        window.electronAPI.removeSettingsSyncedListener();
+      }
+      if (window.electronAPI?.removeUserBreakStartedListener) {
+        window.electronAPI.removeUserBreakStartedListener();
+      }
+      if (window.electronAPI?.removeUserBreakEndedListener) {
+        window.electronAPI.removeUserBreakEndedListener();
       }
     };
   }, []);
@@ -186,15 +215,25 @@ export default function Dashboard() {
               display: "flex",
               alignItems: "center",
               gap: 1,
-              color: isTracking ? "success.500" : "danger.500",
+              color: userOnBreak
+                ? "warning.500"
+                : isTracking
+                  ? "success.500"
+                  : "danger.500",
             }}
           >
             <CheckCircleRoundedIcon />
             <Typography
               level="title-sm"
-              color={isTracking ? "success" : "danger"}
+              color={
+                userOnBreak ? "warning" : isTracking ? "success" : "danger"
+              }
             >
-              {isTracking ? "Monitoring Active" : "Monitoring Inactive"}
+              {userOnBreak
+                ? "Monitoring Inactive (On Break)"
+                : isTracking
+                  ? "Monitoring Active"
+                  : "Monitoring Inactive"}
             </Typography>
           </Box>
           <Sheet

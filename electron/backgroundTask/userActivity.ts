@@ -1,4 +1,9 @@
-import { powerMonitor } from "electron";
+import { powerMonitor, BrowserWindow } from "electron";
+import {
+  startScreenCapture,
+  stopScreenCapture,
+  updateScreenCaptureSettings,
+} from "./screenCapture";
 import takeScreenshot from "../utils/takeScreenshot";
 import uploadScreenshot from "../utils/uploadScreenshot";
 import { uIOhook } from "uiohook-napi";
@@ -12,6 +17,7 @@ let syncInterval: NodeJS.Timeout | null = null;
 let currentUserId: string = "";
 let currentSettings: any = null;
 let authToken: string = "";
+let currentSocketToken: string = "";
 const CHECK_INTERVAL_SECONDS = 10;
 const SYNC_INTERVAL_SECONDS = 60;
 let INACTIVE_THRESHOLD_SECONDS = 300;
@@ -20,11 +26,9 @@ let userInactive = false;
 let userOnBreak = false;
 let mouseClicks = 0;
 let keyboardPresses = 0;
-let isSuspended = false;
 
 powerMonitor.on("suspend", () => {
   log.info("System suspended (sleep mode). Pausing tracking interval.");
-  isSuspended = true;
   if (activityInterval) {
     clearInterval(activityInterval);
     activityInterval = null;
@@ -33,17 +37,16 @@ powerMonitor.on("suspend", () => {
 
 powerMonitor.on("resume", () => {
   log.info("System resumed. Restarting tracking interval.");
-  isSuspended = false;
   if (currentUserId && authToken) {
     startActivityMonitoring();
   }
 });
 
 const setupSocketIO = (socketToken: string) => {
+  currentSocketToken = socketToken;
   try {
     let baseURL = process.env.VITE_BACKEND_URL || "http://localhost:5000";
     if (apiMain.defaults.baseURL) {
-      // apiMain is configured remotely. We strip "/api" to get the pure socket domain
       baseURL = apiMain.defaults.baseURL.replace("/api", "");
     }
     log.info(`Initializing Socket.IO to ${baseURL}`);
@@ -62,6 +65,12 @@ const setupSocketIO = (socketToken: string) => {
             log.info("Socket reconnected: User is ON break. Pausing.");
             userOnBreak = true;
             userInactive = false;
+            try {
+              const windows = BrowserWindow.getAllWindows();
+              if (windows.length > 0) {
+                windows[0].webContents.send("user-break-started");
+              }
+            } catch (e) {}
           } else {
             log.info("Socket reconnected: User is NOT on break.");
             userOnBreak = false;
@@ -77,27 +86,38 @@ const setupSocketIO = (socketToken: string) => {
     });
 
     socket.on("BREAK_STARTED", () => {
-      log.info("Socket event: BREAK_STARTED -> Immediately Pausing tracking.");
       userOnBreak = true;
       userInactive = false;
       lastScreenshotTime = 0;
+      stopScreenCapture();
+      try {
+        const windows = BrowserWindow.getAllWindows();
+        if (windows.length > 0) {
+          windows[0].webContents.send("user-break-started");
+        }
+      } catch (e) {}
+      log.info("Manual break started — All tracking paused.");
     });
 
     socket.on("BREAK_ENDED", () => {
-      log.info("Socket event: BREAK_ENDED -> Immediately Resuming tracking.");
       userOnBreak = false;
       userInactive = false;
       lastScreenshotTime = 0;
+      if (currentSettings?.isActive !== false && currentUserId && authToken) {
+        startScreenCapture(currentUserId, currentSettings, authToken);
+      }
+      try {
+        const windows = BrowserWindow.getAllWindows();
+        if (windows.length > 0) {
+          windows[0].webContents.send("user-break-ended");
+        }
+      } catch (e) {}
+      log.info("Manual break ended — Tracking resumed.");
     });
 
     socket.on("CHECKED_OUT", () => {
-      log.info(
-        "Socket event: CHECKED_OUT -> User checked out from web. Stopping tracking.",
-      );
       try {
-        const { BrowserWindow } = require("electron");
         stopUserActivityTracking();
-        const { stopScreenCapture } = require("./screenCapture");
         stopScreenCapture();
         const windows = BrowserWindow.getAllWindows();
         if (windows.length > 0) {
@@ -109,38 +129,44 @@ const setupSocketIO = (socketToken: string) => {
     });
 
     socket.on("TRACKING_SETTINGS_UPDATED", (newSettings: any) => {
-      log.info(
-        "Socket event: TRACKING_SETTINGS_UPDATED -> Applying live settings to memory!",
-      );
-
       const wasActive = currentSettings?.isActive !== false;
       currentSettings = newSettings;
 
       if (newSettings?.idleDetection?.idleThreshold) {
         INACTIVE_THRESHOLD_SECONDS =
           newSettings.idleDetection.idleThreshold * 60;
-        log.info(
-          `Idle threshold synced to ${newSettings.idleDetection.idleThreshold} minutes.`,
-        );
       }
 
-      const { updateScreenCaptureSettings } = require("./screenCapture");
       updateScreenCaptureSettings(newSettings);
 
+      try {
+        const windows = BrowserWindow.getAllWindows();
+        if (windows.length > 0) {
+          windows[0].webContents.send("settings-synced-live", newSettings);
+        }
+      } catch (e) {}
+
       if (wasActive && newSettings?.isActive === false) {
-        log.info(
-          "Admin disabled tracking globally. Stopping background processes.",
-        );
+        log.info("Tracking disabled by admin — Stopping all services.");
         stopUserActivityTracking();
-        const { stopScreenCapture } = require("./screenCapture");
         stopScreenCapture();
         try {
-          const { BrowserWindow } = require("electron");
           const windows = BrowserWindow.getAllWindows();
           if (windows.length > 0) {
             windows[0].webContents.send("tracking-stopped-by-admin");
           }
         } catch (e) {}
+      } else if (!wasActive && newSettings?.isActive !== false) {
+        log.info("Tracking enabled by admin — Restarting services.");
+        if (currentUserId && authToken) {
+          startUserActivityTracking(
+            currentUserId,
+            newSettings,
+            authToken,
+            currentSocketToken,
+          );
+          startScreenCapture(currentUserId, newSettings, authToken);
+        }
       }
     });
   } catch (err) {
@@ -158,7 +184,6 @@ const startUserActivityTracking = async (
   if (token) authToken = token;
   currentSettings = trackingSettings;
   if (activityInterval) {
-    log.info("Restarting activity tracking...");
     stopUserActivityTracking();
   }
   if (!currentSettings?.isActive)
@@ -185,6 +210,7 @@ const startUserActivityTracking = async (
   startActivityMonitoring();
   startSyncingActivity();
 };
+
 const setupInputHook = () => {
   try {
     uIOhook.on("mousedown", () => {
@@ -201,6 +227,7 @@ const setupInputHook = () => {
     log.error("Failed to start uIOhook:", error);
   }
 };
+
 const stopInputHook = () => {
   try {
     uIOhook.stop();
@@ -210,6 +237,7 @@ const stopInputHook = () => {
     log.error("Error stopping hook:", error);
   }
 };
+
 const startSyncingActivity = () => {
   if (syncInterval) clearInterval(syncInterval);
   syncInterval = setInterval(async () => {
@@ -245,38 +273,12 @@ const startSyncingActivity = () => {
 const startActivityMonitoring = () => {
   activityInterval = setInterval(async () => {
     try {
-      try {
-        const breakRes = await apiMain.get("/breaks/status");
-        if (breakRes.data?.success && breakRes.data?.isOnBreak) {
-          log.info("User is on an active break -> Pausing tracking.");
-          userOnBreak = true;
-          userInactive = false;
-          lastScreenshotTime = 0;
-          return;
-        } else {
-          userOnBreak = false;
-        }
-      } catch (err) {
-        log.error("Failed to fetch break status:", err);
-        userOnBreak = false;
+      if (userOnBreak) {
+        return;
       }
 
       const idleSeconds = powerMonitor.getSystemIdleTime();
       const now = new Date();
-
-      if (currentSettings?.breakTime?.enabled) {
-        const { startTime, endTime } = currentSettings.breakTime;
-        const currentTimeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-
-        if (currentTimeStr >= startTime && currentTimeStr <= endTime) {
-          if (userInactive) {
-            log.info("Break time started - marking user as active");
-            userInactive = false;
-            lastScreenshotTime = 0;
-          }
-          return;
-        }
-      }
 
       if (idleSeconds >= INACTIVE_THRESHOLD_SECONDS) {
         if (!userInactive) {
@@ -302,6 +304,7 @@ const startActivityMonitoring = () => {
     }
   }, CHECK_INTERVAL_SECONDS * 1000);
 };
+
 const handleInactiveScreenshot = async (
   idleSeconds: number,
   now: number,
@@ -323,6 +326,7 @@ const handleInactiveScreenshot = async (
     log.error("Error taking inactive screenshot", error);
   }
 };
+
 const handlePeriodicInactiveScreenshot = async (
   idleSeconds: number,
   now: number,
@@ -340,6 +344,7 @@ const handlePeriodicInactiveScreenshot = async (
     lastScreenshotTime = now;
   }
 };
+
 function stopUserActivityTracking() {
   if (socket) {
     socket.disconnect();

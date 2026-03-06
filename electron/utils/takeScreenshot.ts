@@ -1,6 +1,7 @@
 import { desktopCapturer, app } from "electron";
 import path from "path";
 import fs from "fs";
+
 async function takeScreenshot(userId: string): Promise<string | null> {
   try {
     const sources = await desktopCapturer.getSources({
@@ -24,4 +25,5 @@ async function takeScreenshot(userId: string): Promise<string | null> {
     return null;
   }
 }
+
 export default takeScreenshot;

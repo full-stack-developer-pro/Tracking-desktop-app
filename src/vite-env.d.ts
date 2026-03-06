@@ -29,5 +29,9 @@ interface Window {
     removeUpdateProgressListener: () => void;
     onUpdateDownloaded: (callback: (data: any) => void) => void;
     removeUpdateDownloadedListener: () => void;
+    onTrackingStoppedByAdmin: (callback: () => void) => void;
+    removeTrackingStoppedListener: () => void;
+    onSettingsSyncedLive: (callback: (data: any) => void) => void;
+    removeSettingsSyncedListener: () => void;
   };
 }
