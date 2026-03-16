@@ -33,5 +33,11 @@ interface Window {
     removeTrackingStoppedListener: () => void;
     onSettingsSyncedLive: (callback: (data: any) => void) => void;
     removeSettingsSyncedListener: () => void;
+    onUserBreakStarted: (callback: () => void) => void;
+    removeUserBreakStartedListener: () => void;
+    onUserBreakEnded: (callback: () => void) => void;
+    removeUserBreakEndedListener: () => void;
+    onLogoutSuccess: (callback: () => void) => void;
+    removeLogoutSuccessListener: () => void;
   };
 }

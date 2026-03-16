@@ -95,6 +95,14 @@ export default function Dashboard() {
       });
     }
 
+    if (window.electronAPI?.onLogoutSuccess) {
+      window.electronAPI.onLogoutSuccess(() => {
+        console.log("[renderer] Logout success received from main process. Cleaning up...");
+        localStorage.clear();
+        navigate("/");
+      });
+    }
+
     return () => {
       if (window.electronAPI?.removeTrackingStoppedListener) {
         window.electronAPI.removeTrackingStoppedListener();
@@ -107,6 +115,9 @@ export default function Dashboard() {
       }
       if (window.electronAPI?.removeUserBreakEndedListener) {
         window.electronAPI.removeUserBreakEndedListener();
+      }
+      if (window.electronAPI?.removeLogoutSuccessListener) {
+        window.electronAPI.removeLogoutSuccessListener();
       }
     };
   }, []);

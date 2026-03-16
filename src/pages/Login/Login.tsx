@@ -161,6 +161,14 @@ export default function Login() {
         }
       });
     }
+
+    if (window.electronAPI?.onLogoutSuccess) {
+      window.electronAPI.onLogoutSuccess(() => {
+        console.log("[renderer] Logout success received from main process in Login page. Cleaning up...");
+        localStorage.clear();
+        navigate("/");
+      });
+    }
     checkElectronAPI();
     return () => {
       if (window.electronAPI) {
@@ -170,6 +178,8 @@ export default function Login() {
           window.electronAPI.removeUpdateProgressListener();
         if (window.electronAPI.removeUpdateDownloadedListener)
           window.electronAPI.removeUpdateDownloadedListener();
+        if (window.electronAPI.removeLogoutSuccessListener)
+          window.electronAPI.removeLogoutSuccessListener();
       }
     };
   }, [navigate]);

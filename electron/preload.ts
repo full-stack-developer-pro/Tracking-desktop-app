@@ -58,6 +58,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("user-break-ended", () => callback()),
   removeUserBreakEndedListener: () =>
     ipcRenderer.removeAllListeners("user-break-ended"),
+  onLogoutSuccess: (callback: () => void) =>
+    ipcRenderer.on("logout-success", () => callback()),
+  removeLogoutSuccessListener: () =>
+    ipcRenderer.removeAllListeners("logout-success"),
 });
 
 contextBridge.exposeInMainWorld("ipcRenderer", {
@@ -89,6 +93,7 @@ contextBridge.exposeInMainWorld("ipcRenderer", {
       "show-close-confirmation",
       "deep-link-login",
       "session-expired",
+      "logout-success",
     ];
     if (validChannels.includes(channel)) {
       ipcRenderer.on(channel, (_event, ...args) => func(...args));
@@ -99,6 +104,7 @@ contextBridge.exposeInMainWorld("ipcRenderer", {
       "main-process-message",
       "show-close-confirmation",
       "deep-link-login",
+      "logout-success",
     ];
     if (validChannels.includes(channel)) {
       ipcRenderer.removeAllListeners(channel);

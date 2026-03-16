@@ -288,19 +288,80 @@ if (!gotTheLock) {
   });
 }
 
-async function handleCheckIn(userId: string) {
+async function handleCheckIn(userId: string, confirmedExtraWork = false): Promise<boolean> {
   try {
-    console.log("Attempting Check-in for user:", userId);
-    const res = await apiMain.post("/attendances/check-in");
-    console.log("Check-in Full Response:", JSON.stringify(res.data, null, 2));
-  } catch (error: any) {
-    console.error("Check-in Failed:", error.message);
-    if (error.response) {
-      console.error(
-        "Error Response:",
-        JSON.stringify(error.response.data, null, 2),
-      );
+    log.info(`[main] Attempting Check-in for user: ${userId}, confirmedExtraWork: ${confirmedExtraWork}`);
+    const res = await apiMain.post("/attendances/check-in", { confirmedExtraWork });
+    log.info(`[main] Check-in Success: ${res.status}`);
+
+    if (res.status === 201 && confirmedExtraWork) {
+      const activeWindow = win || BrowserWindow.getAllWindows()[0];
+      if (activeWindow) {
+        dialog.showMessageBox(activeWindow, {
+          type: "info",
+          title: "Success",
+          message: res.data.message || "Check-in successful. Today is recorded as an Extra Work Day.",
+          buttons: ["OK"],
+        });
+      }
     }
+    return true;
+  } catch (error: any) {
+    log.error(`[main] Check-in Failed: ${error.message}`);
+    
+    if (error.response) {
+      const { status, data } = error.response;
+      log.error(`[main] Check-in Error Response: ${status} - ${JSON.stringify(data)}`);
+
+      const activeWindow = win || BrowserWindow.getAllWindows()[0];
+      if (!activeWindow) {
+        log.error("[main] Cannot show check-in dialog: No active window found.");
+        return false;
+      }
+
+      if (status === 409 && data.isOffDay) {
+        log.info("[main] Triggering Off-day/Holiday/Leave confirmation dialog");
+        const result = await dialog.showMessageBox(activeWindow, {
+          type: "question",
+          title: "Check-in Confirmation",
+          message: data.message || "Today is a non-working day. Are you sure you want to check in?",
+          buttons: ["Cancel", "Confirm Check-in"],
+          defaultId: 1,
+          cancelId: 0,
+        });
+
+        if (result.response === 1) {
+          log.info("[main] User confirmed extra work check-in.");
+          return await handleCheckIn(userId, true);
+        }
+        log.info("[main] User cancelled extra work check-in.");
+        await performLogout();
+        return false;
+      } 
+      
+      if (status === 403) {
+        log.info("[main] Showing 403 Leave Warning and performing auto-logout");
+        await dialog.showMessageBox(activeWindow, {
+          type: "warning",
+          title: "Attendance Locked",
+          message: data.message || "You have an active approved leave for today.",
+          buttons: ["OK"],
+        });
+        await performLogout();
+        return false;
+      }
+
+      if (status === 400 && data.message?.toLowerCase().includes("already checked in")) {
+        log.info("[main] User already checked in.");
+        return true;
+      }
+
+      dialog.showErrorBox("Check-in Error", data.message || "An unexpected error occurred during check-in.");
+    } else {
+      log.error("[main] Check-in Network/System Error: " + error.message);
+      dialog.showErrorBox("Network Error", "Failed to connect to the server. Please check your internet connection.");
+    }
+    return false;
   }
 }
 
@@ -359,10 +420,16 @@ ipcMain.on(
       else console.warn("[Main] WARNING: No refresh token received!");
       if (!trackingSettings.isActive)
         return console.log("Tracking is inactive for this user/company");
-      startScreenCapture(userId, trackingSettings, token);
-      startUserActivityTracking(userId, trackingSettings, token, socketToken);
-      await handleCheckIn(userId);
-      console.log("Tracking services started successfully");
+
+      const checkInSuccess = await handleCheckIn(userId);
+      
+      if (checkInSuccess) {
+        startScreenCapture(userId, trackingSettings, token);
+        startUserActivityTracking(userId, trackingSettings, token, socketToken);
+        log.info("[main] Tracking services started successfully after check-in");
+      } else {
+        log.warn("[main] Tracking services not started due to check-in failure or cancellation");
+      }
     } catch (error) {
       console.error("Login initialization failed:", error);
     }
@@ -389,9 +456,9 @@ ipcMain.on("cancel-close", () => {
   console.log("user cancelled checkout/close");
 });
 
-ipcMain.on("logout", async () => {
+async function performLogout() {
   log.info(
-    `[main] Logout requested. Clearing session for user: ${currentUserId}`,
+    `[main] performing logout. Clearing session for user: ${currentUserId}`,
   );
   try {
     const ses = session.fromPartition("persist:tracking-session");
@@ -401,11 +468,21 @@ ipcMain.on("logout", async () => {
   } catch (error) {
     console.error("Failed to clear session:", error);
   }
+
+  const activeWindow = win || BrowserWindow.getAllWindows()[0];
+  if (activeWindow) {
+    activeWindow.webContents.send("logout-success");
+  }
+
   stopScreenCapture();
   stopUserActivityTracking();
   currentUserId = null;
   setApiToken("");
   setScreenCaptureToken("");
+}
+
+ipcMain.on("logout", async () => {
+  await performLogout();
 });
 
 ipcMain.on("update-token", (_event, token) => {

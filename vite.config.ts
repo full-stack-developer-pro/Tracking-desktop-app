@@ -29,14 +29,14 @@ export default defineConfig(({ mode }) => {
                 external: ["googleapis", "google-auth-library", "uiohook-napi"],
                 output: {
                   banner: `
-import { fileURLToPath as __fileURLToPath } from 'node:url';
-import __path from 'node:path';
-import { createRequire as __createRequire } from 'node:module';
+                    import { fileURLToPath as __fileURLToPath } from 'node:url';
+                    import __path from 'node:path';
+                    import { createRequire as __createRequire } from 'node:module';
 
-const __filename = __fileURLToPath(import.meta.url);
-const __dirname = __path.dirname(__filename);
-const require = __createRequire(import.meta.url);
-`,
+                    const __filename = __fileURLToPath(import.meta.url);
+                    const __dirname = __path.dirname(__filename);
+                    const require = __createRequire(import.meta.url);
+                  `,
                 },
               },
             },
