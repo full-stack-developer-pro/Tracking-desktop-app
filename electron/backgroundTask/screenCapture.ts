@@ -18,16 +18,11 @@ const startScreenCapture = async (
   currentSettings = trackingSettings;
   if (!currentSettings?.randomScreenshot?.enabled)
     return log.info("Screenshot capture is disabled in settings");
-  const maxInterval = currentSettings.randomScreenshot?.interval || 20;
-  const randomInterval = getRandomMinutes(maxInterval, 1);
-  log.info(
-    `Random screenshot interval set to ${randomInterval} minutes (max: ${maxInterval})`,
-  );
   if (captureInterval) {
     clearTimeout(captureInterval);
     captureInterval = null;
   }
-  scheduleNextCapture(randomInterval, userId);
+  scheduleNextCapture(userId);
 };
 
 const stopScreenCapture = () => {
@@ -41,8 +36,13 @@ const stopScreenCapture = () => {
   log.info("Screen capture stopped");
 };
 
-const scheduleNextCapture = async (intervalMinutes: number, userId: string) => {
-  const intervalMs = intervalMinutes * 60 * 1000;
+const scheduleNextCapture = async (userId: string) => {
+  const maxInterval = currentSettings?.randomScreenshot?.interval || 20;
+  const randomInterval = getRandomMinutes(maxInterval, 1);
+  const intervalMs = randomInterval * 60 * 1000;
+  log.info(
+    `Next random screenshot in ${randomInterval} minutes (max: ${maxInterval})`,
+  );
   captureInterval = setTimeout(async () => {
     try {
       if (currentSettings?.randomScreenshot?.enabled && loggedInUserId) {
@@ -58,11 +58,11 @@ const scheduleNextCapture = async (intervalMinutes: number, userId: string) => {
           );
       }
       if (currentSettings && loggedInUserId)
-        scheduleNextCapture(intervalMinutes, userId);
+        scheduleNextCapture(userId);
     } catch (error) {
       log.error("Error in scheduled capture:", error);
       if (currentSettings && loggedInUserId) {
-        scheduleNextCapture(intervalMinutes, userId);
+        scheduleNextCapture(userId);
       }
     }
   }, intervalMs);
