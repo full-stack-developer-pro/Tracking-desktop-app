@@ -479,6 +479,14 @@ ipcMain.handle("confirm-checkout", async () => {
   if (success) {
     stopScreenCapture();
     stopUserActivityTracking();
+    try {
+      const ses = session.fromPartition("persist:tracking-session");
+      await ses.clearStorageData({
+        storages: ["cookies", "localstorage"],
+      });
+    } catch (error) {
+      log.error("Failed to clear session during checkout:", error);
+    }
     currentUserId = null;
     isQuitting = true;
     setTimeout(() => {

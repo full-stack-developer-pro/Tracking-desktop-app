@@ -61,8 +61,10 @@ const App = () => {
       const result = await window.ipcRenderer.invoke("confirm-checkout");
       if (result.success) {
         toast.success("Checked out successfully!");
+        localStorage.clear();
         setShowCheckoutModal(false);
       } else {
+
         toast.error("Checkout failed: " + result.message);
         setIsCheckingOut(false);
       }
