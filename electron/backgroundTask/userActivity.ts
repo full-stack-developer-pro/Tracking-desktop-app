@@ -24,7 +24,10 @@ let INACTIVE_THRESHOLD_SECONDS = 300;
 let lastScreenshotTime = 0;
 let userInactive = false;
 let userOnBreak = false;
+let userOnLeave = false;
+let currentLeaves: any[] = [];
 let mouseClicks = 0;
+
 let keyboardPresses = 0;
 
 powerMonitor.on("suspend", () => {
@@ -45,7 +48,7 @@ powerMonitor.on("resume", () => {
 const setupSocketIO = (socketToken: string) => {
   currentSocketToken = socketToken;
   try {
-    let baseURL = process.env.VITE_BACKEND_URL || "http://localhost:5000";
+    let baseURL = process.env.VITE_BACKEND_URL;
     if (apiMain.defaults.baseURL) {
       baseURL = apiMain.defaults.baseURL.replace("/api", "");
     }
@@ -273,11 +276,18 @@ const startSyncingActivity = () => {
 const startActivityMonitoring = () => {
   activityInterval = setInterval(async () => {
     try {
+      checkLeaveStatus();
+
       if (userOnBreak) {
         return;
       }
 
+      if (userOnLeave) {
+        return;
+      }
+
       const idleSeconds = powerMonitor.getSystemIdleTime();
+
       const now = new Date();
 
       if (idleSeconds >= INACTIVE_THRESHOLD_SECONDS) {
@@ -368,9 +378,81 @@ function stopUserActivityTracking() {
   log.info("Stopped user activity tracking");
 }
 
+function updateActiveLeave(leaves: any[]) {
+  currentLeaves = Array.isArray(leaves) ? leaves : leaves ? [leaves] : [];
+  if (currentLeaves.length > 0) {
+    log.info(
+      `[Activity] Active leaves updated: ${currentLeaves.length} records.`,
+    );
+  } else {
+    log.info("[Activity] Active leaves cleared.");
+    userOnLeave = false;
+  }
+}
+
+function checkLeaveStatus() {
+  if (!currentLeaves || currentLeaves.length === 0) return;
+
+  const now = new Date();
+
+  const activeLeave = currentLeaves.find((l) => {
+    if (!l.startTime || !l.endTime) return true;
+
+    try {
+      const [startH, startM] = l.startTime.split(":").map(Number);
+      const [endH, endM] = l.endTime.split(":").map(Number);
+
+      const start = new Date(now);
+      start.setHours(startH, startM, 0, 0);
+
+      const end = new Date(now);
+      end.setHours(endH, endM, 59, 999);
+
+      return now >= start && now <= end;
+    } catch (err) {
+      log.error("[Activity] Error parsing leave times:", err);
+      return false;
+    }
+  });
+
+  const isInside = !!activeLeave;
+
+  if (isInside && !userOnLeave) {
+    userOnLeave = true;
+    log.info("[Activity] Leave period started — Auto-pausing tracking.");
+    stopScreenCapture();
+    try {
+      const windows = BrowserWindow.getAllWindows();
+      if (windows.length > 0) {
+        windows[0].webContents.send("user-leave-status", {
+          active: true,
+          leave: activeLeave,
+        });
+      }
+    } catch (e) {}
+  } else if (!isInside && userOnLeave) {
+    userOnLeave = false;
+    log.info("[Activity] Leave period ended — Auto-resuming tracking.");
+    if (currentSettings?.isActive !== false && currentUserId && authToken) {
+      startScreenCapture(currentUserId, currentSettings, authToken);
+    }
+    try {
+      const windows = BrowserWindow.getAllWindows();
+      if (windows.length > 0) {
+        windows[0].webContents.send("user-leave-status", { active: false });
+      }
+    } catch (e) {}
+  }
+}
+
 const setAuthToken = (token: string) => {
   authToken = token;
   log.info("Auth token updated for user activity tracking");
 };
 
-export { startUserActivityTracking, stopUserActivityTracking, setAuthToken };
+export {
+  startUserActivityTracking,
+  stopUserActivityTracking,
+  setAuthToken,
+  updateActiveLeave,
+};

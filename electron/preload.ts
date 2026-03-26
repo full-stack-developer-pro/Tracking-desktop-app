@@ -16,8 +16,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
       refreshToken,
       socketToken,
     ),
+
   logout: () => ipcRenderer.send("logout"),
+  updateActiveLeave: (leave: any) =>
+    ipcRenderer.send("update-active-leave", leave),
+  onUserLeaveStatus: (callback: (status: any) => void) =>
+    ipcRenderer.on("user-leave-status", (_event, data) => callback(data)),
+  removeUserLeaveStatusListener: () =>
+    ipcRenderer.removeAllListeners("user-leave-status"),
   testConnection: () => ipcRenderer.invoke("test-api-connection"),
+
   getCookies: () => ipcRenderer.invoke("get-cookies"),
   openBrowserAuth: (url: string) => ipcRenderer.send("open-browser-auth", url),
   onDeepLinkLogin: (callback: (data: any) => void) =>
@@ -71,7 +79,9 @@ contextBridge.exposeInMainWorld("ipcRenderer", {
       "logout",
       "cancel-close",
       "open-browser-auth",
+      "update-active-leave",
     ];
+
     if (validChannels.includes(channel)) {
       ipcRenderer.send(channel, ...args);
     }
@@ -94,7 +104,9 @@ contextBridge.exposeInMainWorld("ipcRenderer", {
       "deep-link-login",
       "session-expired",
       "logout-success",
+      "user-leave-status",
     ];
+
     if (validChannels.includes(channel)) {
       ipcRenderer.on(channel, (_event, ...args) => func(...args));
     }
@@ -105,7 +117,9 @@ contextBridge.exposeInMainWorld("ipcRenderer", {
       "show-close-confirmation",
       "deep-link-login",
       "logout-success",
+      "user-leave-status",
     ];
+
     if (validChannels.includes(channel)) {
       ipcRenderer.removeAllListeners(channel);
     }

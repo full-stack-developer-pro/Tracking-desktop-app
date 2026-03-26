@@ -14,9 +14,15 @@ import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
-import { logout } from "../../services/AuthServices";
-import { getTrackingSettings } from "../../services/DataServices";
-const WEBSITE_LOGIN_URL = `https://tracking-panel-pi.vercel.app/authorize-app`;
+import { logout, logoutOtherDevices } from "../../services/AuthServices";
+
+import { getTrackingSettings, getMyLeaves } from "../../services/DataServices";
+import Alert from "@mui/joy/Alert";
+import WarningRoundedIcon from "@mui/icons-material/WarningRounded";
+import moment from "moment";
+
+const WEBSITE_LOGIN_URL = `${import.meta.env.VITE_FRONTEND_URL}/authorize-app`;
+
 function ColorSchemeToggle(props: IconButtonProps) {
   const { onClick, ...other } = props;
   const { mode, setMode } = useColorScheme();
@@ -38,23 +44,33 @@ function ColorSchemeToggle(props: IconButtonProps) {
     </IconButton>
   );
 }
+
 const customTheme = extendTheme({
   colorSchemes: {
     light: {},
     dark: {},
   },
 });
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const [user, setUser] = useState<any>(null);
   const [isTracking, setIsTracking] = useState(false);
   const [userOnBreak, setUserOnBreak] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isLoggingOutOthers, setIsLoggingOutOthers] = useState(false);
+  const [todayLeaves, setTodayLeaves] = useState<any[]>([]);
+  const [onApprovedLeave, setOnApprovedLeave] = useState(false);
+
+  const [now, setNow] = useState(moment());
+
   useEffect(() => {
     const userString = localStorage.getItem("user");
     if (userString) {
       setUser(JSON.parse(userString));
     }
+    const electron = (window as any).electronAPI;
+
     const checkTracking = async () => {
       const companyId = localStorage.getItem("companyId");
       if (companyId) {
@@ -67,61 +83,134 @@ export default function Dashboard() {
         }
       }
     };
-    checkTracking();
 
-    if (window.electronAPI?.onTrackingStoppedByAdmin) {
-      window.electronAPI.onTrackingStoppedByAdmin(() => {
+    const checkLeaves = async () => {
+      try {
+        const res = await getMyLeaves();
+        const leaves = res.data?.data || [];
+        const today = moment().startOf("day");
+        const activeToday = leaves.filter(
+          (l: any) =>
+            l.status === "approved" &&
+            moment(l.startDate).startOf("day").isSameOrBefore(today) &&
+            moment(l.endDate).endOf("day").isSameOrAfter(today),
+        );
+        setTodayLeaves(activeToday);
+        if (electron?.updateActiveLeave) {
+          electron.updateActiveLeave(activeToday);
+        }
+      } catch (err) {
+        console.error("Failed to fetch leaves", err);
+      }
+    };
+
+    checkTracking();
+    checkLeaves();
+
+    if (electron?.onTrackingStoppedByAdmin) {
+      electron.onTrackingStoppedByAdmin(() => {
         setIsTracking(false);
         toast.error("Your tracking has been stopped by the company.");
       });
     }
 
-    if (window.electronAPI?.onSettingsSyncedLive) {
-      window.electronAPI.onSettingsSyncedLive((newSettings: any) => {
+    if (electron?.onSettingsSyncedLive) {
+      electron.onSettingsSyncedLive((newSettings: any) => {
         localStorage.setItem("trackingSettings", JSON.stringify(newSettings));
         setIsTracking(newSettings?.isActive ?? false);
       });
     }
 
-    if (window.electronAPI?.onUserBreakStarted) {
-      window.electronAPI.onUserBreakStarted(() => {
+    if (electron?.onUserBreakStarted) {
+      electron.onUserBreakStarted(() => {
         setUserOnBreak(true);
       });
     }
 
-    if (window.electronAPI?.onUserBreakEnded) {
-      window.electronAPI.onUserBreakEnded(() => {
+    if (electron?.onUserBreakEnded) {
+      electron.onUserBreakEnded(() => {
         setUserOnBreak(false);
       });
     }
 
-    if (window.electronAPI?.onLogoutSuccess) {
-      window.electronAPI.onLogoutSuccess(() => {
-        console.log("[renderer] Logout success received from main process. Cleaning up...");
+    if (electron?.onLogoutSuccess) {
+      electron.onLogoutSuccess(() => {
+        console.log(
+          "[renderer] Logout success received from main process. Cleaning up...",
+        );
         localStorage.clear();
         navigate("/");
       });
     }
 
+    if (electron?.onUserLeaveStatus) {
+      electron.onUserLeaveStatus((status: any) => {
+        setOnApprovedLeave(status.active);
+      });
+    }
+
     return () => {
-      if (window.electronAPI?.removeTrackingStoppedListener) {
-        window.electronAPI.removeTrackingStoppedListener();
+      if (electron?.removeTrackingStoppedListener) {
+        electron.removeTrackingStoppedListener();
       }
-      if (window.electronAPI?.removeSettingsSyncedListener) {
-        window.electronAPI.removeSettingsSyncedListener();
+      if (electron?.removeSettingsSyncedListener) {
+        electron.removeSettingsSyncedListener();
       }
-      if (window.electronAPI?.removeUserBreakStartedListener) {
-        window.electronAPI.removeUserBreakStartedListener();
+      if (electron?.removeUserBreakStartedListener) {
+        electron.removeUserBreakStartedListener();
       }
-      if (window.electronAPI?.removeUserBreakEndedListener) {
-        window.electronAPI.removeUserBreakEndedListener();
+      if (electron?.removeUserBreakEndedListener) {
+        electron.removeUserBreakEndedListener();
       }
-      if (window.electronAPI?.removeLogoutSuccessListener) {
-        window.electronAPI.removeLogoutSuccessListener();
+      if (electron?.removeLogoutSuccessListener) {
+        electron.removeLogoutSuccessListener();
+      }
+      if (electron?.removeUserLeaveStatusListener) {
+        electron.removeUserLeaveStatusListener();
       }
     };
   }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setNow(moment());
+    }, 30000);
+
+    const dataRefresh = setInterval(
+      () => {
+        const checkLeaves = async () => {
+          try {
+            const res = await getMyLeaves();
+            const leaves = res.data?.data || [];
+            const today = moment().startOf("day");
+            const activeToday = leaves.filter(
+              (l: any) =>
+                l.status === "approved" &&
+                moment(l.startDate).startOf("day").isSameOrBefore(today) &&
+                moment(l.endDate).endOf("day").isSameOrAfter(today),
+            );
+            setTodayLeaves(activeToday);
+            const electron = (window as any).electronAPI;
+            if (electron?.updateActiveLeave) {
+              electron.updateActiveLeave(activeToday);
+            }
+          } catch (e) {
+            console.error("Periodic leave refresh failed", e);
+          }
+        };
+        checkLeaves();
+      },
+      15 * 60 * 1000,
+    );
+
+    return () => {
+      clearInterval(interval);
+      clearInterval(dataRefresh);
+    };
+  }, []);
+
   const handleLogout = async () => {
+    const electron = (window as any).electronAPI;
     setIsLoggingOut(true);
     try {
       try {
@@ -129,13 +218,10 @@ export default function Dashboard() {
       } catch (e) {
         console.warn("Backend logout failed (might be already expired)", e);
       }
-
-      if (window.electronAPI) {
-        window.electronAPI.logout();
+      if (electron) {
+        electron.logout();
       }
-
       localStorage.clear();
-
       toast.success("Logged out successfully");
       navigate("/");
     } catch (error: any) {
@@ -147,13 +233,57 @@ export default function Dashboard() {
       setIsLoggingOut(false);
     }
   };
+
+  const handleLogoutOthers = async () => {
+    const refreshToken = localStorage.getItem("refreshToken");
+    if (!refreshToken) {
+      toast.error("Session information missing. Please re-login.");
+      return;
+    }
+    setIsLoggingOutOthers(true);
+    try {
+      const res = await logoutOtherDevices(refreshToken);
+      if (res.data.success) {
+        toast.success(res.data.message || "Logged out from other devices");
+      }
+    } catch (error: any) {
+      console.error(error);
+      toast.error(
+        error?.response?.data?.message ||
+          "Failed to log out from other devices",
+      );
+    } finally {
+      setIsLoggingOutOthers(false);
+    }
+  };
+
   const handleBrowserLogin = () => {
-    if (window.electronAPI?.openBrowserAuth) {
-      window.electronAPI.openBrowserAuth(WEBSITE_LOGIN_URL);
+    const electron = (window as any).electronAPI;
+    if (electron?.openBrowserAuth) {
+      electron.openBrowserAuth(WEBSITE_LOGIN_URL);
     } else {
       toast.error("Browser open not supported");
     }
   };
+
+  const relevantLeave = todayLeaves
+    .filter((l: any) => {
+      if (!l.endTime) return true;
+      const [h, m] = l.endTime.split(":");
+      const leaveEndTime = moment().set({
+        hour: parseInt(h),
+        minute: parseInt(m),
+        second: 59,
+        millisecond: 999,
+      });
+      return now.isBefore(leaveEndTime);
+    })
+    .sort((a: any, b: any) => {
+      if (!a.startTime) return -1;
+      if (!b.startTime) return 1;
+      return a.startTime.localeCompare(b.startTime);
+    })[0];
+
   return (
     <CssVarsProvider
       theme={customTheme}
@@ -209,6 +339,37 @@ export default function Dashboard() {
           })}
           variant="outlined"
         >
+          {relevantLeave && (
+            <Alert
+              variant="soft"
+              color="warning"
+              startDecorator={<WarningRoundedIcon />}
+              sx={{ mb: 1, alignItems: "flex-start" }}
+            >
+              <Box>
+                <Typography level="title-sm">
+                  Upcoming/Active Leave Today
+                </Typography>
+                <Typography level="body-xs">
+                  You have an approved{" "}
+                  {relevantLeave.leaveDuration.replace("-", " ")}
+                  {relevantLeave.startTime && relevantLeave.endTime && (
+                    <>
+                      {" "}
+                      (
+                      {moment(relevantLeave.startTime, "HH:mm").format(
+                        "hh:mm A",
+                      )}{" "}
+                      -{" "}
+                      {moment(relevantLeave.endTime, "HH:mm").format("hh:mm A")}
+                      )
+                    </>
+                  )}
+                </Typography>
+              </Box>
+            </Alert>
+          )}
+
           <Box
             sx={{
               display: "flex",
@@ -237,14 +398,22 @@ export default function Dashboard() {
             <Typography
               level="title-sm"
               color={
-                userOnBreak ? "warning" : isTracking ? "success" : "danger"
+                onApprovedLeave
+                  ? "warning"
+                  : userOnBreak
+                    ? "warning"
+                    : isTracking
+                      ? "success"
+                      : "danger"
               }
             >
-              {userOnBreak
-                ? "Monitoring Inactive (On Break)"
-                : isTracking
-                  ? "Monitoring Active"
-                  : "Monitoring Inactive"}
+              {onApprovedLeave
+                ? "Monitoring Inactive (On Approved Leave)"
+                : userOnBreak
+                  ? "Monitoring Inactive (On Break)"
+                  : isTracking
+                    ? "Monitoring Active"
+                    : "Monitoring Inactive"}
             </Typography>
           </Box>
           <Sheet
@@ -281,7 +450,15 @@ export default function Dashboard() {
           >
             Use this if your session expired or you need to switch accounts.
           </Typography>
-          <Box sx={{ mt: 2, display: "flex", justifyContent: "center" }}>
+          <Box
+            sx={{
+              mt: 2,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 1,
+            }}
+          >
             <Button
               variant="plain"
               color="danger"
@@ -292,6 +469,17 @@ export default function Dashboard() {
               disabled={isLoggingOut}
             >
               Logout
+            </Button>
+            <Button
+              variant="plain"
+              color="neutral"
+              onClick={handleLogoutOthers}
+              size="sm"
+              loading={isLoggingOutOthers}
+              disabled={isLoggingOutOthers || isLoggingOut}
+              sx={{ opacity: 0.7, fontSize: "xs" }}
+            >
+              Logout from other devices
             </Button>
           </Box>
         </Sheet>
