@@ -48,9 +48,41 @@ export default function Login() {
   const [updateReady, setUpdateReady] = useState(false);
   useEffect(() => {
     const token = localStorage.getItem("token");
-    if (token) {
-      navigate("/dashboard");
-      return;
+    const userId = localStorage.getItem("userId");
+    const trackingSettingsStr = localStorage.getItem("trackingSettings");
+    const refreshToken = localStorage.getItem("refreshToken");
+
+    if (token && userId) {
+      let trackingSettings = null;
+      try {
+        if (trackingSettingsStr)
+          trackingSettings = JSON.parse(trackingSettingsStr);
+      } catch (e) {}
+
+      if (window.electronAPI) {
+        window.electronAPI
+          .login(
+            userId,
+            trackingSettings,
+            token,
+            refreshToken || undefined,
+            undefined,
+          )
+          .then((result: any) => {
+            if (result.success) {
+              navigate("/dashboard");
+            } else {
+              localStorage.clear();
+              toast.error(
+                result.message || "Session expired or check-in blocked.",
+              );
+            }
+          });
+        return;
+      } else {
+        navigate("/dashboard");
+        return;
+      }
     }
     const checkElectronAPI = async () => {
       if (window.electronAPI) {
@@ -122,37 +154,45 @@ export default function Login() {
             }
           }
           if (window.electronAPI) {
-            window.electronAPI.login(
+            const result = await window.electronAPI.login(
               userId,
               trackingSettings,
               token,
               refreshToken,
               socketToken,
             );
-            if (!trackingSettings) {
-              toast.warn(
-                "Could not fetch company settings. Tracking might be limited.",
+
+            if (result.success) {
+              if (!trackingSettings) {
+                toast.warn(
+                  "Could not fetch company settings. Tracking might be limited.",
+                );
+              } else if (!trackingSettings.isActive) {
+                toast.info("Tracking is disabled for your company.");
+              } else {
+                toast.success("Desktop tracking started!");
+              }
+
+              if (token) {
+                localStorage.setItem("token", token);
+              }
+              if (refreshToken) {
+                localStorage.setItem("refreshToken", refreshToken);
+              }
+              localStorage.setItem("userId", userId);
+              localStorage.setItem("role", role);
+              localStorage.setItem("companyId", companyId || "");
+              localStorage.setItem(
+                "trackingSettings",
+                JSON.stringify(trackingSettings),
               );
-            } else if (!trackingSettings.isActive) {
-              toast.info("Tracking is disabled for your company.");
+              navigate("/dashboard");
             } else {
-              toast.success("Desktop tracking started!");
-            }
-            if (token) {
-              localStorage.setItem("token", token);
-            }
-            if (refreshToken) {
-              localStorage.setItem("refreshToken", refreshToken);
+              toast.error(
+                result.message || "Failed to initialize tracking session.",
+              );
             }
           }
-          localStorage.setItem("userId", userId);
-          localStorage.setItem("role", role);
-          localStorage.setItem("companyId", companyId || "");
-          localStorage.setItem(
-            "trackingSettings",
-            JSON.stringify(trackingSettings),
-          );
-          navigate("/dashboard");
         } catch (error) {
           console.error("Deep link initialization error:", error);
           toast.error(
@@ -164,7 +204,9 @@ export default function Login() {
 
     if (window.electronAPI?.onLogoutSuccess) {
       window.electronAPI.onLogoutSuccess(() => {
-        console.log("[renderer] Logout success received from main process in Login page. Cleaning up...");
+        console.log(
+          "[renderer] Logout success received from main process in Login page. Cleaning up...",
+        );
         localStorage.clear();
         navigate("/");
       });

@@ -131,6 +131,23 @@ const setupSocketIO = (socketToken: string) => {
       }
     });
 
+    socket.on("FORCE_STOP_TRACKING", (data: any) => {
+      log.warn(`[socket] FORCE_STOP_TRACKING received: ${data?.message}`);
+      try {
+        stopUserActivityTracking();
+        stopScreenCapture();
+        const windows = BrowserWindow.getAllWindows();
+        if (windows.length > 0) {
+          windows[0].webContents.send("force-stop-tracking", data);
+          if (data?.logout) {
+            windows[0].webContents.send("session-expired");
+          }
+        }
+      } catch (err) {
+        log.error("Failed to handle FORCE_STOP_TRACKING event cleanly:", err);
+      }
+    });
+
     socket.on("TRACKING_SETTINGS_UPDATED", (newSettings: any) => {
       const wasActive = currentSettings?.isActive !== false;
       currentSettings = newSettings;

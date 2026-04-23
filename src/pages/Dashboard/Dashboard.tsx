@@ -149,6 +149,18 @@ export default function Dashboard() {
       });
     }
 
+    if (electron?.onForceStopTracking) {
+      electron.onForceStopTracking((data: any) => {
+        setIsTracking(false);
+        toast.error(data.message || "Tracking has been force-stopped.");
+        if (data.logout) {
+          setTimeout(() => {
+            handleLogout();
+          }, 3000);
+        }
+      });
+    }
+
     return () => {
       if (electron?.removeTrackingStoppedListener) {
         electron.removeTrackingStoppedListener();
@@ -167,6 +179,9 @@ export default function Dashboard() {
       }
       if (electron?.removeUserLeaveStatusListener) {
         electron.removeUserLeaveStatusListener();
+      }
+      if (electron?.removeForceStopTrackingListener) {
+        electron.removeForceStopTrackingListener();
       }
     };
   }, []);

@@ -1,9 +1,15 @@
-export {};
+
 
 interface IElectronAPI {
   logout: () => void;
   openBrowserAuth: (url: string) => void;
-  login: (userId: string, trackingSettings: any, token: string) => void;
+  login: (
+    userId: string,
+    trackingSettings: any,
+    token?: string,
+    refreshToken?: string,
+    socketToken?: string,
+  ) => Promise<any>;
   onDeepLinkLogin: (callback: (data: any) => void) => void;
   testConnection: () => Promise<any>;
   removeDeepLinkListener: () => void;
@@ -13,6 +19,31 @@ interface IElectronAPI {
   updateToken: (token: string) => void;
   onTrackingStoppedByAdmin: (callback: () => void) => void;
   removeTrackingStoppedListener: () => void;
+  onSettingsSyncedLive: (callback: (data: any) => void) => void;
+  removeSettingsSyncedListener: () => void;
+  onUserBreakStarted: (callback: () => void) => void;
+  removeUserBreakStartedListener: () => void;
+  onUserBreakEnded: (callback: () => void) => void;
+  removeUserBreakEndedListener: () => void;
+  onLogoutSuccess: (callback: () => void) => void;
+  removeLogoutSuccessListener: () => void;
+  onForceStopTracking: (callback: (data: any) => void) => void;
+  removeForceStopTrackingListener: () => void;
+  updateActiveLeave: (leave: any) => void;
+  onUserLeaveStatus: (callback: (status: any) => void) => void;
+  removeUserLeaveStatusListener: () => void;
+  checkForUpdates: () => Promise<any>;
+  startDownload: () => Promise<any>;
+  quitAndInstall: () => void;
+  onUpdateProgress: (callback: (data: any) => void) => void;
+  removeUpdateProgressListener: () => void;
+  onUpdateDownloaded: (callback: (info: any) => void) => void;
+  removeUpdateDownloadedListener: () => void;
+  googleOAuth: () => Promise<any>;
+  confirmCheckout: () => Promise<any>;
+  cancelClose: () => void;
+  onShowCloseConfirmation: (callback: (data: any) => void) => void;
+  removeCloseConfirmationListener: () => void;
 }
 
 interface IIpcRenderer {
@@ -22,9 +53,7 @@ interface IIpcRenderer {
   invoke: (channel: string, ...args: any[]) => Promise<any>;
 }
 
-declare global {
-  interface Window {
-    electronAPI?: IElectronAPI;
-    ipcRenderer?: IIpcRenderer;
-  }
+interface Window {
+  electronAPI?: IElectronAPI;
+  ipcRenderer?: IIpcRenderer;
 }

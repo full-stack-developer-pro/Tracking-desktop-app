@@ -8,7 +8,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     refreshToken?: string,
     socketToken?: string,
   ) =>
-    ipcRenderer.send(
+    ipcRenderer.invoke(
       "login",
       userId,
       trackingSettings,
@@ -70,6 +70,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("logout-success", () => callback()),
   removeLogoutSuccessListener: () =>
     ipcRenderer.removeAllListeners("logout-success"),
+  onForceStopTracking: (callback: (data: any) => void) =>
+    ipcRenderer.on("force-stop-tracking", (_event, data) => callback(data)),
+  removeForceStopTrackingListener: () =>
+    ipcRenderer.removeAllListeners("force-stop-tracking"),
 });
 
 contextBridge.exposeInMainWorld("ipcRenderer", {

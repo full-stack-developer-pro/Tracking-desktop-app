@@ -431,7 +431,7 @@ async function handleCheckOut() {
   }
 }
 
-ipcMain.on(
+ipcMain.handle(
   "login",
   async (
     _event,
@@ -442,18 +442,22 @@ ipcMain.on(
     socketToken,
   ) => {
     try {
-      if (!trackingSettings)
-        return console.error("No tracking settings provided");
+      if (!trackingSettings) {
+        log.error("No tracking settings provided");
+        return { success: false, message: "Missing tracking settings" };
+      }
       currentUserId = userId;
-      console.log(
+      log.info(
         `[Main] Login received. User: ${userId}, Token: ${!!token}, RefreshToken: ${!!refreshToken}`,
       );
       setApiToken(token);
       setScreenCaptureToken(token);
       if (refreshToken) setRefreshToken(refreshToken);
-      else console.warn("[Main] WARNING: No refresh token received!");
-      if (!trackingSettings.isActive)
-        return console.log("Tracking is inactive for this user/company");
+
+      if (!trackingSettings.isActive) {
+        log.info("Tracking is inactive for this user/company");
+        return { success: true, message: "Tracking is inactive" };
+      }
 
       const checkInSuccess = await handleCheckIn(userId);
 
@@ -463,13 +467,19 @@ ipcMain.on(
         log.info(
           "[main] Tracking services started successfully after check-in",
         );
+        return { success: true };
       } else {
         log.warn(
-          "[main] Tracking services not started due to check-in failure or cancellation",
+          "[main] Tracking services not started due to check-in failure",
         );
+        setApiToken("");
+        setScreenCaptureToken("");
+        currentUserId = null;
+        return { success: false, message: "Check-in failed" };
       }
-    } catch (error) {
-      console.error("Login initialization failed:", error);
+    } catch (error: any) {
+      log.error("Login initialization failed:", error);
+      return { success: false, error: error.message };
     }
   },
 );
