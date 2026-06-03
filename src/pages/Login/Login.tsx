@@ -16,6 +16,52 @@ import { getTrackingSettings } from "../../services/DataServices";
 const WEBSITE_LOGIN_URL = `${
   import.meta.env.VITE_FRONTEND_URL || "https://tracking-panel-pi.vercel.app"
 }/authorize-app`;
+
+const fetchIpGeolocation = async (): Promise<{
+  latitude?: number;
+  longitude?: number;
+}> => {
+  if (window.electronAPI?.getIpLocation) {
+    try {
+      const coords = await window.electronAPI.getIpLocation();
+      if (coords.latitude && coords.longitude) {
+        return coords;
+      }
+    } catch (err) {
+      console.error("IPC getIpLocation failed:", err);
+    }
+  }
+  return {};
+};
+
+const getCoordinates = async (): Promise<{
+  latitude?: number;
+  longitude?: number;
+}> => {
+  console.log(
+    "[getCoordinates] Fetching coordinates via IP-based Geolocation...",
+  );
+  const coords = await fetchIpGeolocation();
+  if (coords.latitude && coords.longitude) {
+    localStorage.setItem("locationPermissionGranted", "true");
+    window.dispatchEvent(new Event("location-permission-changed"));
+    if (window.electronAPI?.setLocationPermissionAllowed) {
+      await window.electronAPI.setLocationPermissionAllowed(true);
+    }
+    console.log(
+      `[getCoordinates Success] Latitude: ${coords.latitude}, Longitude: ${coords.longitude}`,
+    );
+    return coords;
+  } else {
+    console.warn(
+      "[getCoordinates Failed] Unable to retrieve IP-based coordinates.",
+    );
+    toast.error(
+      "Failed to retrieve location coordinates. Please ensure your device is connected to the internet.",
+    );
+    return {};
+  }
+};
 function ColorSchemeToggle(props: IconButtonProps) {
   const { onClick, ...other } = props;
   const { mode, setMode } = useColorScheme();
@@ -46,6 +92,24 @@ export default function Login() {
   const [downloading, setDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState<any>(null);
   const [updateReady, setUpdateReady] = useState(false);
+  const [isLocationAllowed, setIsLocationAllowed] = useState(
+    localStorage.getItem("locationPermissionGranted") === "true",
+  );
+
+  const handleRequestPermission = async () => {
+    if (window.electronAPI) {
+      const allowed =
+        await window.electronAPI.requestLocationPermissionConfirm();
+      if (allowed) {
+        localStorage.setItem("locationPermissionGranted", "true");
+        window.dispatchEvent(new Event("location-permission-changed"));
+        await window.electronAPI.setLocationPermissionAllowed(true);
+        setIsLocationAllowed(true);
+      } else {
+        setIsLocationAllowed(false);
+      }
+    }
+  };
   useEffect(() => {
     const token = localStorage.getItem("token");
     const userId = localStorage.getItem("userId");
@@ -60,24 +124,53 @@ export default function Login() {
       } catch (e) {}
 
       if (window.electronAPI) {
-        window.electronAPI
-          .login(
-            userId,
-            trackingSettings,
-            token,
-            refreshToken || undefined,
-            undefined,
-          )
-          .then((result: any) => {
-            if (result.success) {
-              navigate("/dashboard");
-            } else {
-              localStorage.clear();
-              toast.error(
-                result.message || "Session expired or check-in blocked.",
-              );
+        const triggerAutoLogin = async () => {
+          const hasPermission =
+            localStorage.getItem("locationPermissionGranted") === "true";
+          if (!hasPermission) {
+            toast.error("Please allow location permission first.");
+            const userAllowed =
+              await window.electronAPI!.requestLocationPermissionConfirm();
+            if (userAllowed) {
+              localStorage.setItem("locationPermissionGranted", "true");
+              window.dispatchEvent(new Event("location-permission-changed"));
+              await window.electronAPI!.setLocationPermissionAllowed(true);
+              setTimeout(triggerAutoLogin, 500);
             }
-          });
+            return;
+          }
+
+          const coords = await getCoordinates();
+          console.log(
+            `[Auto-Login] Sending check-in API request. Coordinates -> Latitude: ${coords.latitude}, Longitude: ${coords.longitude}`,
+          );
+          window
+            .electronAPI!.login(
+              userId,
+              trackingSettings,
+              token,
+              refreshToken || undefined,
+              undefined,
+              coords.latitude,
+              coords.longitude,
+            )
+            .then((result: any) => {
+              if (result.success) {
+                navigate("/dashboard");
+              } else {
+                const locPerm = localStorage.getItem(
+                  "locationPermissionGranted",
+                );
+                localStorage.clear();
+                if (locPerm)
+                  localStorage.setItem("locationPermissionGranted", locPerm);
+                toast.error(
+                  result.message || "Session expired or check-in blocked.",
+                );
+              }
+            });
+        };
+        triggerAutoLogin();
         return;
       } else {
         navigate("/dashboard");
@@ -154,12 +247,32 @@ export default function Login() {
             }
           }
           if (window.electronAPI) {
-            const result = await window.electronAPI.login(
+            const hasPermission =
+              localStorage.getItem("locationPermissionGranted") === "true";
+            if (!hasPermission) {
+              toast.error("Please allow location permission first.");
+              const userAllowed =
+                await window.electronAPI!.requestLocationPermissionConfirm();
+              if (userAllowed) {
+                localStorage.setItem("locationPermissionGranted", "true");
+                window.dispatchEvent(new Event("location-permission-changed"));
+                await window.electronAPI!.setLocationPermissionAllowed(true);
+              } else {
+                return;
+              }
+            }
+            const coords = await getCoordinates();
+            console.log(
+              `[SSO-Login] Sending check-in API request. Coordinates -> Latitude: ${coords.latitude}, Longitude: ${coords.longitude}`,
+            );
+            const result = await window.electronAPI!.login(
               userId,
               trackingSettings,
               token,
               refreshToken,
               socketToken,
+              coords.latitude,
+              coords.longitude,
             );
 
             if (result.success) {
@@ -207,12 +320,29 @@ export default function Login() {
         console.log(
           "[renderer] Logout success received from main process in Login page. Cleaning up...",
         );
+        const locPerm = localStorage.getItem("locationPermissionGranted");
         localStorage.clear();
+        if (locPerm) localStorage.setItem("locationPermissionGranted", locPerm);
         navigate("/");
       });
     }
     checkElectronAPI();
+
+    const handlePermissionChange = () => {
+      const allowed =
+        localStorage.getItem("locationPermissionGranted") === "true";
+      setIsLocationAllowed(allowed);
+    };
+    window.addEventListener(
+      "location-permission-changed",
+      handlePermissionChange,
+    );
+
     return () => {
+      window.removeEventListener(
+        "location-permission-changed",
+        handlePermissionChange,
+      );
       if (window.electronAPI) {
         if (window.electronAPI.removeDeepLinkListener)
           window.electronAPI.removeDeepLinkListener();
@@ -371,15 +501,39 @@ export default function Login() {
                     fullWidth
                     startDecorator={<OpenInNewRoundedIcon />}
                     onClick={handleBrowserLogin}
+                    disabled={!isLocationAllowed}
                   >
                     Login with Browser (SSO)
                   </Button>
-                  <Typography
-                    level="body-xs"
-                    sx={{ textAlign: "center", opacity: 0.7 }}
-                  >
-                    Use this if you are already logged in on the website.
-                  </Typography>
+                  {!isLocationAllowed ? (
+                    <Typography
+                      level="body-xs"
+                      sx={{
+                        textAlign: "center",
+                        color: "danger.plainColor",
+                        mt: 1,
+                      }}
+                    >
+                      Location permission is required.{" "}
+                      <span
+                        style={{
+                          textDecoration: "underline",
+                          cursor: "pointer",
+                          fontWeight: "bold",
+                        }}
+                        onClick={handleRequestPermission}
+                      >
+                        Click here to allow.
+                      </span>
+                    </Typography>
+                  ) : (
+                    <Typography
+                      level="body-xs"
+                      sx={{ textAlign: "center", opacity: 0.7 }}
+                    >
+                      Use this if you are already logged in on the website.
+                    </Typography>
+                  )}
                 </Box>
                 <Box
                   sx={{

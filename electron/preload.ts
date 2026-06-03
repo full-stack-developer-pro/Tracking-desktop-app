@@ -7,6 +7,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     token?: string,
     refreshToken?: string,
     socketToken?: string,
+    latitude?: number,
+    longitude?: number,
   ) =>
     ipcRenderer.invoke(
       "login",
@@ -15,6 +17,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
       token,
       refreshToken,
       socketToken,
+      latitude,
+      longitude,
     ),
 
   logout: () => ipcRenderer.send("logout"),
@@ -34,6 +38,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.removeAllListeners("deep-link-login"),
   googleOAuth: () => ipcRenderer.invoke("google-oauth"),
   confirmCheckout: () => ipcRenderer.invoke("confirm-checkout"),
+  requestLocationPermissionConfirm: () =>
+    ipcRenderer.invoke("request-location-permission-confirm"),
+  setLocationPermissionAllowed: (allowed: boolean) =>
+    ipcRenderer.invoke("set-location-permission-allowed", allowed),
+  getIpLocation: () => ipcRenderer.invoke("get-ip-location"),
   cancelClose: () => ipcRenderer.send("cancel-close"),
   onShowCloseConfirmation: (callback: (data: any) => void) =>
     ipcRenderer.on("show-close-confirmation", (_event, data) => callback(data)),

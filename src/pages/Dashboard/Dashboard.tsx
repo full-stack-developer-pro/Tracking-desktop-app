@@ -138,7 +138,9 @@ export default function Dashboard() {
         console.log(
           "[renderer] Logout success received from main process. Cleaning up...",
         );
+        const locPerm = localStorage.getItem("locationPermissionGranted");
         localStorage.clear();
+        if (locPerm) localStorage.setItem("locationPermissionGranted", locPerm);
         navigate("/");
       });
     }
@@ -236,7 +238,9 @@ export default function Dashboard() {
       if (electron) {
         electron.logout();
       }
+      const locPerm = localStorage.getItem("locationPermissionGranted");
       localStorage.clear();
+      if (locPerm) localStorage.setItem("locationPermissionGranted", locPerm);
       toast.success("Logged out successfully");
       navigate("/");
     } catch (error: any) {

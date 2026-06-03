@@ -7,7 +7,6 @@ import {
   protocol,
   dialog,
 } from "electron";
-import { fileURLToPath } from "node:url";
 import path from "node:path";
 import axios from "axios";
 import dotenv from "dotenv";
@@ -35,6 +34,8 @@ const CUSTOM_PROTOCOL = "tracking-app";
 let win: BrowserWindow | null = null;
 let isQuitting = false;
 let currentUserId: string | null = null;
+let activeLoginPromise: Promise<any> | null = null;
+let locationPermissionAllowed = false;
 
 process.env.APP_ROOT = path.join(__dirname, "..");
 const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL;
@@ -65,6 +66,117 @@ function createWindow() {
       webSecurity: false,
     },
   });
+
+  const sessionPartition = session.fromPartition("persist:tracking-session");
+
+  sessionPartition.setPermissionRequestHandler(
+    async (webContents, permission, callback) => {
+      log.info(`[sessionPartition] request for permission: ${permission}`);
+      if (permission === "geolocation") {
+        if (locationPermissionAllowed) {
+          log.info(
+            "[sessionPartition] Permission already allowed globally. Granting directly.",
+          );
+          callback(true);
+          return;
+        }
+
+        const activeWindow =
+          BrowserWindow.fromWebContents(webContents) ||
+          win ||
+          BrowserWindow.getAllWindows()[0];
+        if (activeWindow) {
+          const { response } = await dialog.showMessageBox(activeWindow, {
+            type: "question",
+            title: "Location Permission Request",
+            message:
+              "Tracking Time requires access to your location to verify your check-in. Do you want to allow this application to access your location?",
+            buttons: ["Deny", "Allow"],
+            defaultId: 1,
+            cancelId: 0,
+          });
+          if (response === 1) {
+            log.info("[sessionPartition] User allowed geolocation permission.");
+            locationPermissionAllowed = true;
+            callback(true);
+            return;
+          }
+        }
+        log.info("[sessionPartition] User denied geolocation permission.");
+        locationPermissionAllowed = false;
+        callback(false);
+      } else {
+        callback(false);
+      }
+    },
+  );
+
+  sessionPartition.setPermissionCheckHandler(
+    (_webContents, permission, origin) => {
+      log.info(
+        `[sessionPartition] check for permission: ${permission} from origin: ${origin}`,
+      );
+      if (permission === "geolocation") {
+        return locationPermissionAllowed;
+      }
+      return false;
+    },
+  );
+
+  session.defaultSession.setPermissionRequestHandler(
+    async (webContents, permission, callback) => {
+      log.info(`[defaultSession] request for permission: ${permission}`);
+      if (permission === "geolocation") {
+        if (locationPermissionAllowed) {
+          log.info(
+            "[defaultSession] Permission already allowed globally. Granting directly.",
+          );
+          callback(true);
+          return;
+        }
+
+        const activeWindow =
+          BrowserWindow.fromWebContents(webContents) ||
+          win ||
+          BrowserWindow.getAllWindows()[0];
+        if (activeWindow) {
+          const { response } = await dialog.showMessageBox(activeWindow, {
+            type: "question",
+            title: "Location Permission Request",
+            message:
+              "Tracking Time requires access to your location to verify your check-in. Do you want to allow this application to access your location?",
+            buttons: ["Deny", "Allow"],
+            defaultId: 1,
+            cancelId: 0,
+          });
+          if (response === 1) {
+            log.info("[defaultSession] User allowed geolocation permission.");
+            locationPermissionAllowed = true;
+            callback(true);
+            return;
+          }
+        }
+        log.info("[defaultSession] User denied geolocation permission.");
+        locationPermissionAllowed = false;
+        callback(false);
+      } else {
+        callback(false);
+      }
+    },
+  );
+
+  session.defaultSession.setPermissionCheckHandler(
+    (_webContents, permission, origin) => {
+      log.info(
+        `[defaultSession] check for permission: ${permission} from origin: ${origin}`,
+      );
+      if (permission === "geolocation") {
+        return locationPermissionAllowed;
+      }
+      return false;
+    },
+  );
+
   win.once("ready-to-show", () => {
     log.info("Window is ready to show");
     win?.show();
@@ -215,6 +327,22 @@ if (!gotTheLock) {
         "Registering custom protocol handler for PARTITION 'persist:tracking-session'...",
       );
       const ses = session.fromPartition("persist:tracking-session");
+      ses.setPermissionRequestHandler((_webContents, permission, callback) => {
+        if (permission === "geolocation") {
+          callback(true);
+        } else {
+          callback(false);
+        }
+      });
+      session.defaultSession.setPermissionRequestHandler(
+        (_webContents, permission, callback) => {
+          if (permission === "geolocation") {
+            callback(true);
+          } else {
+            callback(false);
+          }
+        },
+      );
       ses.protocol.handle(CUSTOM_PROTOCOL, async (request) => {
         try {
           const url = new URL(request.url);
@@ -290,16 +418,83 @@ if (!gotTheLock) {
   });
 }
 
+function getFriendlyCheckInErrorMessage(message: string): {
+  title: string;
+  friendlyMessage: string;
+} {
+  const msgLower = message.toLowerCase();
+
+  if (
+    msgLower.includes("coordinates") ||
+    msgLower.includes("latitude") ||
+    msgLower.includes("longitude")
+  ) {
+    return {
+      title: "Location Access Required",
+      friendlyMessage:
+        "We could not verify your location. Please ensure location services are enabled on your device, permission is granted to the application, and you are at your office location.",
+    };
+  }
+
+  if (
+    msgLower.includes("outside") ||
+    msgLower.includes("range") ||
+    msgLower.includes("limit")
+  ) {
+    return {
+      title: "Outside Office Range",
+      friendlyMessage:
+        "You are not at your office location. Please ensure you check in from your assigned branch office.",
+    };
+  }
+
+  if (msgLower.includes("not assigned to any office branch")) {
+    return {
+      title: "No Branch Assigned",
+      friendlyMessage:
+        "You are not assigned to any office branch. Please contact your administrator.",
+    };
+  }
+
+  if (msgLower.includes("coordinates are not configured")) {
+    return {
+      title: "Location Not Configured",
+      friendlyMessage:
+        "Your assigned branch coordinates are not configured. Please contact your administrator.",
+    };
+  }
+
+  if (msgLower.includes("leave")) {
+    return {
+      title: "Attendance Locked",
+      friendlyMessage:
+        message || "You have an active approved leave for today.",
+    };
+  }
+
+  return {
+    title: "Check-in Error",
+    friendlyMessage: message,
+  };
+}
+
 async function handleCheckIn(
   userId: string,
   confirmedExtraWork = false,
+  latitude?: number,
+  longitude?: number,
 ): Promise<boolean> {
   try {
     log.info(
-      `[main] Attempting Check-in for user: ${userId}, confirmedExtraWork: ${confirmedExtraWork}`,
+      `[main] Attempting Check-in for user: ${userId}, confirmedExtraWork: ${confirmedExtraWork}, location: ${latitude}, ${longitude}`,
+    );
+    console.log(
+      `[Check-in API Coordinates] Sending to backend -> Latitude: ${latitude}, Longitude: ${longitude}`,
     );
     const res = await apiMain.post("/attendances/check-in", {
       confirmedExtraWork,
+      latitude,
+      longitude,
     });
     log.info(`[main] Check-in Success: ${res.status}`);
 
@@ -356,7 +551,7 @@ async function handleCheckIn(
 
         if (result.response === 1) {
           log.info("[main] User confirmed extra work check-in.");
-          return await handleCheckIn(userId, true);
+          return await handleCheckIn(userId, true, latitude, longitude);
         }
         log.info("[main] User cancelled extra work check-in.");
         await performLogout();
@@ -364,12 +559,16 @@ async function handleCheckIn(
       }
 
       if (status === 403) {
-        log.info("[main] Showing 403 Leave Warning and performing auto-logout");
+        const { title, friendlyMessage } = getFriendlyCheckInErrorMessage(
+          data.message || "",
+        );
+        log.info(
+          `[main] Showing 403 warning (${title}) and performing auto-logout`,
+        );
         await dialog.showMessageBox(activeWindow, {
           type: "warning",
-          title: "Attendance Locked",
-          message:
-            data.message || "You have an active approved leave for today.",
+          title: title,
+          message: friendlyMessage,
           buttons: ["OK"],
         });
         await performLogout();
@@ -384,10 +583,12 @@ async function handleCheckIn(
         return true;
       }
 
-      dialog.showErrorBox(
-        "Check-in Error",
-        data.message || "An unexpected error occurred during check-in.",
+      const { title, friendlyMessage } = getFriendlyCheckInErrorMessage(
+        data.message || "",
       );
+      dialog.showErrorBox(title, friendlyMessage);
+      await performLogout();
+      return false;
     } else {
       log.error("[main] Check-in Network/System Error: " + error.message);
       dialog.showErrorBox(
@@ -440,49 +641,100 @@ ipcMain.handle(
     token,
     refreshToken,
     socketToken,
+    latitude,
+    longitude,
   ) => {
-    try {
-      if (!trackingSettings) {
-        log.error("No tracking settings provided");
-        return { success: false, message: "Missing tracking settings" };
-      }
-      currentUserId = userId;
+    if (activeLoginPromise) {
       log.info(
-        `[Main] Login received. User: ${userId}, Token: ${!!token}, RefreshToken: ${!!refreshToken}`,
+        "[main] Login handler: A login request is already in progress. Returning active promise.",
       );
-      setApiToken(token);
-      setScreenCaptureToken(token);
-      if (refreshToken) setRefreshToken(refreshToken);
+      return activeLoginPromise;
+    }
 
-      if (!trackingSettings.isActive) {
-        log.info("Tracking is inactive for this user/company");
-        return { success: true, message: "Tracking is inactive" };
-      }
-
-      const checkInSuccess = await handleCheckIn(userId);
-
-      if (checkInSuccess) {
-        startScreenCapture(userId, trackingSettings, token);
-        startUserActivityTracking(userId, trackingSettings, token, socketToken);
+    activeLoginPromise = (async () => {
+      try {
+        if (!trackingSettings) {
+          log.error("No tracking settings provided");
+          return { success: false, message: "Missing tracking settings" };
+        }
+        currentUserId = userId;
         log.info(
-          "[main] Tracking services started successfully after check-in",
+          `[Main] Login received. User: ${userId}, Token: ${!!token}, RefreshToken: ${!!refreshToken}`,
         );
-        return { success: true };
-      } else {
-        log.warn(
-          "[main] Tracking services not started due to check-in failure",
+        setApiToken(token);
+        setScreenCaptureToken(token);
+        if (refreshToken) setRefreshToken(refreshToken);
+
+        if (!trackingSettings.isActive) {
+          log.info("Tracking is inactive for this user/company");
+          return { success: true, message: "Tracking is inactive" };
+        }
+
+        const checkInSuccess = await handleCheckIn(
+          userId,
+          false,
+          latitude,
+          longitude,
         );
-        setApiToken("");
-        setScreenCaptureToken("");
-        currentUserId = null;
-        return { success: false, message: "Check-in failed" };
+
+        if (checkInSuccess) {
+          startScreenCapture(userId, trackingSettings, token);
+          startUserActivityTracking(
+            userId,
+            trackingSettings,
+            token,
+            socketToken,
+          );
+          log.info(
+            "[main] Tracking services started successfully after check-in",
+          );
+          return { success: true };
+        } else {
+          log.warn(
+            "[main] Tracking services not started due to check-in failure",
+          );
+          setApiToken("");
+          setScreenCaptureToken("");
+          currentUserId = null;
+          return { success: false, message: "Check-in failed" };
+        }
+      } catch (error: any) {
+        log.error("Login initialization failed:", error);
+        return { success: false, error: error.message };
       }
-    } catch (error: any) {
-      log.error("Login initialization failed:", error);
-      return { success: false, error: error.message };
+    })();
+
+    try {
+      const result = await activeLoginPromise;
+      return result;
+    } finally {
+      activeLoginPromise = null;
     }
   },
 );
+
+ipcMain.handle("request-location-permission-confirm", async () => {
+  const activeWindow = win || BrowserWindow.getAllWindows()[0];
+  if (!activeWindow) return false;
+
+  const { response } = await dialog.showMessageBox(activeWindow, {
+    type: "question",
+    title: "Location Permission Request",
+    message:
+      "Tracking Time requires access to your location to verify your check-in. Do you want to allow this application to access your location?",
+    buttons: ["Deny", "Allow"],
+    defaultId: 1,
+    cancelId: 0,
+  });
+
+  if (response === 1) {
+    locationPermissionAllowed = true;
+    return true;
+  } else {
+    locationPermissionAllowed = false;
+    return false;
+  }
+});
 
 ipcMain.handle("confirm-checkout", async () => {
   const success = await handleCheckOut();
@@ -510,6 +762,101 @@ ipcMain.handle("confirm-checkout", async () => {
 
 ipcMain.on("cancel-close", () => {
   console.log("user cancelled checkout/close");
+});
+
+ipcMain.handle("set-location-permission-allowed", (_event, allowed) => {
+  log.info(`[main] Setting locationPermissionAllowed to: ${allowed}`);
+  locationPermissionAllowed = allowed;
+  return true;
+});
+
+ipcMain.handle("get-ip-location", async () => {
+  log.info("[main] Fetching IP Geolocation...");
+
+  try {
+    const response = await axios.get("https://ipapi.co/json/", {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      },
+      timeout: 4000,
+    });
+    if (response.data && typeof response.data.latitude === "number") {
+      log.info(
+        `[main] IP Geolocation Success (ipapi.co): Lat: ${response.data.latitude}, Lon: ${response.data.longitude}`,
+      );
+      return {
+        latitude: response.data.latitude,
+        longitude: response.data.longitude,
+      };
+    }
+  } catch (err: any) {
+    log.warn(`[main] ipapi.co failed: ${err.message}`);
+  }
+
+  try {
+    const response = await axios.get("https://ip-api.com/json/", {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      },
+      timeout: 4000,
+    });
+    if (response.data && typeof response.data.lat === "number") {
+      log.info(
+        `[main] IP Geolocation Success (ip-api.com): Lat: ${response.data.lat}, Lon: ${response.data.lon}`,
+      );
+      return { latitude: response.data.lat, longitude: response.data.lon };
+    }
+  } catch (err: any) {
+    log.warn(`[main] ip-api.com failed: ${err.message}`);
+  }
+
+  try {
+    const response = await axios.get("https://freeipapi.com/api/json", {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      },
+      timeout: 4000,
+    });
+    if (response.data && typeof response.data.latitude === "number") {
+      log.info(
+        `[main] IP Geolocation Success (freeipapi.com): Lat: ${response.data.latitude}, Lon: ${response.data.longitude}`,
+      );
+      return {
+        latitude: response.data.latitude,
+        longitude: response.data.longitude,
+      };
+    }
+  } catch (err: any) {
+    log.warn(`[main] freeipapi.com failed: ${err.message}`);
+  }
+
+  try {
+    const response = await axios.get("https://ipinfo.io/json", {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      },
+      timeout: 4000,
+    });
+    if (response.data && typeof response.data.loc === "string") {
+      const parts = response.data.loc.split(",");
+      const lat = parseFloat(parts[0]);
+      const lon = parseFloat(parts[1]);
+      if (!isNaN(lat) && !isNaN(lon)) {
+        log.info(
+          `[main] IP Geolocation Success (ipinfo.io): Lat: ${lat}, Lon: ${lon}`,
+        );
+        return { latitude: lat, longitude: lon };
+      }
+    }
+  } catch (err: any) {
+    log.warn(`[main] ipinfo.io failed: ${err.message}`);
+  }
+
+  return {};
 });
 
 async function performLogout() {

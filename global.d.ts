@@ -1,5 +1,3 @@
-
-
 interface IElectronAPI {
   logout: () => void;
   openBrowserAuth: (url: string) => void;
@@ -9,6 +7,8 @@ interface IElectronAPI {
     token?: string,
     refreshToken?: string,
     socketToken?: string,
+    latitude?: number,
+    longitude?: number,
   ) => Promise<any>;
   onDeepLinkLogin: (callback: (data: any) => void) => void;
   testConnection: () => Promise<any>;
@@ -41,6 +41,9 @@ interface IElectronAPI {
   removeUpdateDownloadedListener: () => void;
   googleOAuth: () => Promise<any>;
   confirmCheckout: () => Promise<any>;
+  requestLocationPermissionConfirm: () => Promise<boolean>;
+  setLocationPermissionAllowed: (allowed: boolean) => Promise<any>;
+  getIpLocation: () => Promise<{ latitude?: number; longitude?: number }>;
   cancelClose: () => void;
   onShowCloseConfirmation: (callback: (data: any) => void) => void;
   removeCloseConfirmationListener: () => void;
@@ -51,6 +54,7 @@ interface IIpcRenderer {
   off: (channel: string, listener?: (...args: any[]) => void) => void;
   send: (channel: string, ...args: any[]) => void;
   invoke: (channel: string, ...args: any[]) => Promise<any>;
+  removeAllListeners: (channel: string) => void;
 }
 
 interface Window {
