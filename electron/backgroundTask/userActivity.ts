@@ -27,22 +27,67 @@ let userOnBreak = false;
 let userOnLeave = false;
 let currentLeaves: any[] = [];
 let mouseClicks = 0;
-
 let keyboardPresses = 0;
+let suspendedAt: number | null = null;
+let idleSecondsAtSuspend = 0;
 
 powerMonitor.on("suspend", () => {
-  log.info("System suspended (sleep mode). Pausing tracking interval.");
+  log.info("System suspended (sleep mode). Pausing activity tracking.");
+  suspendedAt = Date.now();
+  idleSecondsAtSuspend = powerMonitor.getSystemIdleTime();
   if (activityInterval) {
     clearInterval(activityInterval);
     activityInterval = null;
   }
+  stopInputHook();
+  stopScreenCapture();
 });
 
 powerMonitor.on("resume", () => {
-  log.info("System resumed. Restarting tracking interval.");
-  if (currentUserId && authToken) {
-    startActivityMonitoring();
+  const resumedAt = Date.now();
+  const sleepSeconds = suspendedAt
+    ? Math.max(0, Math.floor((resumedAt - suspendedAt) / 1000))
+    : 0;
+  const totalIdleSeconds = idleSecondsAtSuspend + sleepSeconds;
+  const wasInactive = userInactive;
+  suspendedAt = null;
+  idleSecondsAtSuspend = 0;
+
+  log.info(`System resumed after ${sleepSeconds} seconds.`);
+  if (!currentUserId || !authToken || currentSettings?.isActive === false) {
+    return;
   }
+
+  const shouldCountSleepAsInactive =
+    !userOnBreak &&
+    !userOnLeave &&
+    sleepSeconds > 0 &&
+    (wasInactive || totalIdleSeconds >= INACTIVE_THRESHOLD_SECONDS);
+
+  if (shouldCountSleepAsInactive) {
+    const inactiveMinutes = wasInactive
+      ? Math.floor(sleepSeconds / 60)
+      : Math.floor(totalIdleSeconds / 60);
+    log.info(
+      `Recording ${inactiveMinutes} minutes of inactivity across system sleep.`,
+    );
+    void handleInactiveScreenshot(
+      totalIdleSeconds,
+      resumedAt,
+      inactiveMinutes,
+    );
+  }
+
+  if (!userOnBreak && !userOnLeave) {
+    startScreenCapture(currentUserId, currentSettings, authToken);
+  }
+  setupInputHook();
+  userInactive =
+    powerMonitor.getSystemIdleTime() >= INACTIVE_THRESHOLD_SECONDS;
+  if (!userInactive) {
+    lastScreenshotTime = 0;
+  }
+  startActivityMonitoring();
 });
 
 const setupSocketIO = (socketToken: string) => {
@@ -291,6 +336,7 @@ const startSyncingActivity = () => {
 };
 
 const startActivityMonitoring = () => {
+  if (activityInterval) clearInterval(activityInterval);
   activityInterval = setInterval(async () => {
     try {
       checkLeaveStatus();
